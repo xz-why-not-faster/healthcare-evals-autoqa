@@ -5,6 +5,11 @@ judging is done by Claude Code **Workflow** scripts in `evals/`; small determini
 in `build/` merge the results, categorize each task, and format the deliverables.
 
 > **Prerequisite:** run `python3 set_root.py` once after cloning (see [README](../README.md)).
+>
+> **Shortcut:** [`run.py`](run.py) (or the `run-l1-eval` skill) wraps every step below into
+> `ingest → persist → categorize → deliverables`, with the two Workflow checkpoints marked. This
+> file is the manual/detail reference; [DELIVERABLES.md](DELIVERABLES.md) covers how each output is
+> built and [DATA.md](DATA.md) covers the input.
 
 ## Run-folder model
 

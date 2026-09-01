@@ -32,48 +32,41 @@ python3 qa_pipeline_active/set_root.py        # points every eval at this checko
 (the Workflow runtime can't read env vars or the filesystem, so the path is a source constant).
 Run it once after cloning, and again if you move the repo. It's idempotent.
 
-## The daily L1 run
+## Data source
 
-Everything for one run lives in a dated **run folder** under `qa_pipeline_active/`. The build
-scripts are designed to run *from inside* that folder (they resolve paths relative to themselves),
-so a run starts by copying the `build/` templates in:
+The one input is the V19 **"full data per task"** CSV, pulled from **Redash query 359286**
+(https://redash.scale.com/queries/359286/) → *Download as CSV*. It's not in the repo (creds +
+PII, regenerable). Details + the column schema are in [`qa_pipeline_active/DATA.md`](qa_pipeline_active/DATA.md).
+
+## Running it — one entrypoint
+
+The pipeline interleaves deterministic Python with LLM eval steps that run inside the Claude
+Code Workflow runtime, so there are **two checkpoints** where an agent launches a Workflow and
+hands its output back. Two equivalent ways to drive it:
+
+**A. The skill (recommended — an agent runs the whole thing).** Invoke the
+[`run-l1-eval`](.claude/skills/run-l1-eval/SKILL.md) skill; it sequences every step, launches the
+two Workflows, and enforces the eval guardrails.
+
+**B. By hand with `run.py`** — the same steps, explicit:
 
 ```bash
-cd qa_pipeline_active
-RUN=2026-09-01_L1              # pick a label
-mkdir -p "$RUN" && cp build/* "$RUN"/
-CSV="/path/to/V19_ full data per task.csv"
+python3 qa_pipeline_active/set_root.py                                   # once, after clone
 
-# 1. Ingest — build case files + link status from the CSV (only L1, only pending tasks)
-python3 ingest_active.py --csv "$CSV" --run "$RUN" --levels L1 --tasks-file "$RUN/ids.json"
-python3 "$RUN"/build_meta.py "$CSV"          # -> meta.json
-
-# 2. Artifact check (standard) — is each uploaded chat PDF the same convo as its share link?
-python3 pdf_link_check.py "$RUN"             # -> phase_pdfcheck.json
-
-# 3. The eval battery (Claude Code Workflow) — run build/battery_nt.js with the task ids as args
-#    (battery_traffic.js for traffic tasks). Save its .output, then:
-python3 "$RUN"/persist_battery.py <battery.output>   # -> phase_*.json
-
-# 4. Categorize — merge all phase files into findings + a backfill worklist
-python3 "$RUN"/categorize.py                 # -> deliverables/eval_findings.csv, worklist.json
-
-# 5. Backfill + feedback (Workflow: qa_active_backfill.js, qa_active_revoice.js, qa_active_external.js)
-python3 "$RUN"/build_worklist.py             # backfill plan for the LLM backfill eval
-python3 "$RUN"/build_external_input.py       # reviewer-facing inputs for the external eval
-#   ...run the three Workflow evals, persisting phase_backfill.json / phase_external.json...
-
-# 6. Deliverables
-python3 "$RUN"/build_melt.py                 # backfill_forms (long/melt format)
-python3 "$RUN"/build_persona_sheet.py        # persona_updates.csv
-python3 "$RUN"/build_contributor_feedback.py # contributor_feedback.csv (parity / broken-link only)
-python3 "$RUN"/build_sheets.py "$CSV"        # external_feedback.csv
+python3 qa_pipeline_active/run.py ingest 2026-09-01_L1 --csv "$CSV" --ids ids.json
+#   ── CHECKPOINT 1: run Workflow qa_pipeline_active/build/battery_nt.js (args = the task ids)
+python3 qa_pipeline_active/run.py persist      2026-09-01_L1 --output battery.output
+python3 qa_pipeline_active/run.py categorize   2026-09-01_L1
+#   ── CHECKPOINT 2: run Workflows qa_active_backfill.js, qa_active_revoice.js, qa_active_external.js
+python3 qa_pipeline_active/run.py deliverables 2026-09-01_L1 --csv "$CSV"
 ```
 
-See [`qa_pipeline_active/PIPELINE.md`](qa_pipeline_active/PIPELINE.md) for the full step-by-step
-(phase-file reference, the Workflow invocations, and the traffic-task variant), and
-[`qa_pipeline_active/EVAL_MAP.md`](qa_pipeline_active/EVAL_MAP.md) for what each eval flags and how
-tasks are categorized.
+Each `run.py` command prints exactly what to do next (including the Workflow to launch and the
+task ids to pass). `RUN` is a bare label (→ `qa_pipeline_active/<label>/`) or a path.
+
+For the full picture: [`PIPELINE.md`](qa_pipeline_active/PIPELINE.md) (step-by-step + phase files),
+[`EVAL_MAP.md`](qa_pipeline_active/EVAL_MAP.md) (**what each eval evaluates**), and
+[`DELIVERABLES.md`](qa_pipeline_active/DELIVERABLES.md) (**how each deliverable is built**).
 
 ---
 
@@ -85,8 +78,11 @@ task-scraper/
 ├── requirements.txt
 ├── .claude/skills/              the QA rubric + the 5 human-review skills (qa-*)
 └── qa_pipeline_active/
-    ├── PIPELINE.md              full runbook + phase-file reference
-    ├── EVAL_MAP.md              what each eval checks + categorization rules
+    ├── run.py                   ★ one entrypoint (ingest / persist / categorize / deliverables)
+    ├── DATA.md                  the Redash data source + CSV schema
+    ├── PIPELINE.md              full manual runbook + phase-file reference
+    ├── EVAL_MAP.md              the eval workflow: what each eval ingests + judges
+    ├── DELIVERABLES.md          how each deliverable is built (columns, rules, step-ids)
     ├── set_root.py              one-time setup (repoints evals at this checkout)
     ├── ingest_active.py         CSV + live links -> per-task case files (workspace/)
     ├── pdf_link_check.py        artifact check: uploaded chat PDF vs share link
@@ -95,6 +91,8 @@ task-scraper/
     ├── lib/                     link_check + transcript_exporter (used by ingest)
     ├── evals/                   the Workflow eval scripts (LLM judges)
     └── build/                   run templates: battery orchestrators + build_*.py
+
+The single-run entrypoint is also wrapped as the [`run-l1-eval`](.claude/skills/run-l1-eval/SKILL.md) skill.
 ```
 
 Everything a run *produces* — `workspace/`, `artifacts/`, `transcripts/`, and the dated run
