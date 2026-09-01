@@ -1,0 +1,3 @@
+# Healthcare Evals AutoQA — Python dependencies
+# Everything else the pipeline uses is in the Python 3 standard library.
+pypdf>=4.0          # pdf_link_check.py: extract text from uploaded chat PDFs

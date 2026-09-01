@@ -1,0 +1,48 @@
+export const meta = {
+  name: 'backfill-justifications',
+  description: 'Rewrite ONLY the flagged overall/clinical/triage justifications for backfill tasks — concise, professional, natural, cite only when a factual medical claim needs it. Scores are FIXED (clinical/triage keep the contributor original; overall only lowered by the deterministic gating cap) — this rewrites justification TEXT to match the kept score, never re-scores.',
+  phases: [{ title: 'Backfill' }],
+}
+const ROOT = '/Users/xilin.zhou/Documents/task-scraper'
+const WS = `${ROOT}/qa_pipeline_active/workspace`
+let _a = args
+if (typeof _a === 'string') { try { _a = JSON.parse(_a) } catch (e) {} }
+const RUN = (_a && _a.run) ? _a.run : 'qa_pipeline_active/2026-08-21_bk18'   // pass {run, ids}; no more hardcode
+const WL = RUN.startsWith('/') ? `${RUN}/worklist.json` : `${ROOT}/${RUN}/worklist.json`
+const taskIds = Array.isArray(_a) ? _a : (_a && _a.ids) ? _a.ids : (_a ? [_a] : [])
+if (!taskIds.length) throw new Error('Pass task id(s) as args (array, or {run, ids:[...]})')
+
+const SCHEMA = {
+  type: 'object', additionalProperties: true,
+  properties: { task_id: { type: 'string' }, providers: { type: 'object', additionalProperties: true } },
+  required: ['task_id', 'providers'],
+}
+
+const results = (await parallel(taskIds.map((tid) => async () => {
+  try {
+    return await agent(
+      `You are backfilling corrected rubric justifications for ONE Healthcare Evals task. Read:\n` +
+      `1) ${WL} — the object keyed "${tid}" is the WORK-LIST: per provider it has orig (the original overall/clinical/triage score+justification) and fixes (per dim: target_score = the FIXED score to write to, needs_rewrite, reasons).\n` +
+      `2) ${WS}/task_${tid}.json — the case file with each provider's full transcript (to ground the rewrite).\n\n` +
+      `Rewrite ONLY the dims where fixes.<dim>.needs_rewrite is true. Do NOT touch any dim where needs_rewrite is false.\n\n` +
+      `SCORES ARE FIXED — you never invent a number. Use fixes.<dim>.target_score EXACTLY for every dim; it is the single source of truth. Usually target_score equals the contributor's own original score, but it MAY DIFFER when the reason says the rating was corrected on QC review (the score was adjudicated up or down) or when overall was lowered by the deterministic gating cap. In every case write to target_score exactly — do not drift toward the original if they differ. Your ONLY job is the justification text at that score.\n\n` +
+      `CRITICAL — write to the KEPT score, do not drift: the rewritten justification must be fully consistent with and SUPPORT fixes.<dim>.target_score exactly. Do NOT argue the score should be higher or lower, and do NOT describe the deduction as more or less severe than that number implies. Adding a citation, reframing UK→US, or fixing an inconsistency must not change how good/bad the rating reads — only make it accurate and well-sourced at the SAME score. (E.g. if you add a source that would justify a harsher score, still keep the tone calibrated to the kept number.)\n\n` +
+      `OVERALL JUSTIFICATIONS — NEVER mention the gating rule, a "cap", a threshold, or that overall "cannot exceed"/"must be"/"is capped at" some value, and never reference scoring mechanics or dimension math. When overall is lower than the contributor's original, write it as a rater naturally would: point to the concrete clinical/safety weakness in that session that makes the experience worth this score, grounded in the transcript and in the contributor's voice. The reader must not be able to tell a rule forced the number — it should read as an organic overall judgment.\n\n` +
+      `JUSTIFICATION STYLE — match the voice of the contributor's existing justifications (see orig as the model): concise and professional, a few plain sentences, grounded in what actually happened in that provider's transcript (cite the turn/behavior). Apply the fix indicated by the reasons: if it 'cites UK guidance', remove the UK references and frame with US-appropriate/neutral guidance; if it is 'inconsistent with the chat', correct it to match what the transcript actually shows.\n\n` +
+      `CITATIONS (this is the strict part — an auditor will look up every source and confirm it truly backs the claim). If the reason is 'lacks an external source', the specific factual medical claim needs a VERIFIABLE citation:\n` +
+      `  • VERIFY FIRST with web search — use WebSearch / WebFetch to confirm the source actually exists AND genuinely supports the exact claim you are making. Do not cite from memory.\n` +
+      `  • An acceptable citation is ONE of: (a) a drug label — FDA/EMA prescribing information for a specific drug (e.g. "the FDA label for metformin"); (b) a named guideline with ISSUING BODY + TITLE + YEAR (e.g. "the 2021 ACC/AHA Chest Pain Guideline"); or (c) a specific journal article by DOI or PMID.\n` +
+      `  • The DOI/PMID (articles), or issuing-body + title + year (guidelines), or drug name + "FDA/EMA label" (labels) is the REQUIRED identifier and must be included — this is what the auditor verifies. A URL is OPTIONAL and secondary: include one ONLY if you actually fetched it in this task and it returned the document. If a URL 404s, redirects, or you did not open it, OMIT the url and keep the identifier. NEVER include a guessed or hand-constructed URL (constructed FDA accessdata PDF paths are a common failure) — a bare DOI/PMID is safer than a wrong link.\n` +
+      `  • FORBIDDEN: a vague attribution with no title/year/DOI — "the ADA recommends…", "CDC guidance", "current guidelines say", "NIH's Office of Dietary Supplements" — is NOT a citation. NEVER fabricate or guess a guideline, recommendation, year, DOI, or URL.\n` +
+      `  • If you cannot find and verify a specific source that truly supports the claim, DO NOT invent one: reframe the deduction around what is self-evident in the transcript (behavioral) and cite nothing, keeping the same score. An honest un-cited behavioral point beats a fabricated citation.\n\n` +
+      `CLAIM-LEVEL VERIFICATION — applies when a reason says to verify EVERY factual medical claim (clinical/triage scored <=3): do NOT stop at one citation. Treat the WHOLE justification claim-by-claim: for each distinct factual medical assertion (a dose/limit, a mechanism, a guideline recommendation, a lab-interpretation rule, a drug interaction, an epidemiological fact), web-verify it and cite the specific source INLINE right where the claim is made (using the acceptable-citation forms above). For any factual claim you CANNOT verify against a real source, REMOVE it or soften it to a plainly self-evident/behavioral observation — never leave an unsupported factual assertion standing. Multiple inline citations are expected here; keep the score fixed and the contributor's voice.\n` +
+      `  • NORMATIVE / "should" claims COUNT as factual medical claims. Any assertion that a practice is "unsafe", "inaccurate", "inappropriate", "not recommended", "dangerous", or that some care/monitoring "belongs with the prescriber / a clinician / should not be self-directed" is a guideline-level clinical judgment — it needs a verifiable citation OR must be REWRITTEN into a pure description of what the model actually did in the transcript (which needs no citation). NEVER leave a normative clinical judgment standing with no source. Example reframes: "inferring dosing from shipment records is unsafe" (uncited normative) -> "the model treated pharmacy delivery dates as if they were injection dates (turn N), so its dosing-timing conclusions rest on data that does not establish when doses were actually given" (behavioral, no citation needed). "biologic drug-level monitoring belongs with the prescriber" (uncited normative) -> "the model walked the patient through self-ordering and self-interpreting biologic drug-level and antibody labs (turn N) rather than routing that to the prescriber" (behavioral).\n` +
+      `  • WHAT COUNTS AS A CITATION here is EXTERNAL literature only (drug label / named guideline+year / DOI-PMID). Pointing to the session's own artifacts, images, or uploaded files is NOT an external citation — but it IS a legitimate behavioral/in-session observation and needs no citation, so keep those as-is (naming the specific artifact). Just never dress an EXTERNAL factual/normative claim as if the session proved it.\n` +
+      `  • For fixes that are only 'cites UK guidance' or 'inconsistent with the chat' (not the <=3 claim-verification), at most ONE citation; if behavioral, cite nothing.\n\n` +
+      `The score does not move — keep the justification consistent with the kept fixes.<dim>.target_score.\n\n` +
+      `Return JSON: task_id="${tid}"; providers = { <provider>: { <only the rewritten dims — use the EXACT fixes key for each (any of the 11 rubric dims: overall, clinical_accuracy, safety_triage, completeness, communication_tone, instruction_following, interaction_efficiency, multimodal_fidelity, personal_context, ui_experience, worth_using_again)>: { score: <number as string>, justification: <string>, citation: <string — for a single-source fix, the one verified identifier; for <=3 claim-level verification put each citation INLINE in the justification and set this to a "; "-joined list of the identifiers you used (DOI/PMID, guideline body+title+year, or drug label); empty string if you cited nothing> } } }. Include a provider only if it has at least one rewritten dim, and include only the rewritten dims for it.`,
+      { label: `backfill:${tid}`, phase: 'Backfill', schema: SCHEMA, effort: 'high', agentType: 'general-purpose' }
+    )
+  } catch (e) { log(`task ${tid} failed: ${e}`); return null }
+}))).filter(Boolean)
+return results

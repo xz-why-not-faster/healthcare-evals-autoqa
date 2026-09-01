@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Healthcare Evals AutoQA — .gitignore
+# The repo ships CODE + DOCS only. All task data, inputs, and run outputs are
+# regenerable and/or contain contributor PII + account credentials — never commit.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# --- Input data (contains account credentials; regenerable from the V19 sheet) ---
+*.csv
+*.tsv
+
+# --- Deliveries / task payloads (contain real conversations + PII) ---
+*.jsonl
+delivery_*.json
+*.webloc
+
+# --- Pipeline runtime data (regenerable per run) ---
+qa_pipeline_active/workspace/
+qa_pipeline_active/artifacts/
+qa_pipeline_active/transcripts/
+qa_pipeline_active/transcripts_missing/
+qa_pipeline_active/ratings_only/
+qa_pipeline_active/.catcls/
+turn_counter_share/transcripts/
+
+# --- Per-run output folders (dated: qa_pipeline_active/2026-08-31_L1csv24/ etc.) ---
+qa_pipeline_active/[0-9][0-9][0-9][0-9]-[0-9][0-9]-*/
+
+# --- Local scratch / editor / OS cruft ---
+*.zip
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+.current_run
