@@ -246,7 +246,7 @@ Melt `step` = `"{stepid}.{base}_{n}"` (rating) / `"{stepid}.{base}_just_{n}"` (j
 task-scraper/
 ├── README.md                    this file — the full picture
 ├── requirements.txt
-├── .claude/skills/              the QA rubric + the review skills (qa-*) + run-l1-eval
+├── .claude/skills/              the QA rubric + review skills (qa-*) + run-l1-eval + sandbox-eval-sync
 └── qa_pipeline_active/
     ├── run.py                   ★ one entrypoint (ingest / persist / categorize / deliverables)
     ├── PIPELINE.md              manual step-by-step + phase-file reference
