@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README: ordered the driver table by touch — reviewer drivers first, then attempter, then backfill.
+
 * [2026-09-01] README: driver table Category column now shows the needs-review split per driver (→ reviewer vs → attempter).
 
 * [2026-09-01] Needs-review routing: reviewer (high touch) = {no_valid_stump, uk_in_session, not_healthcare}; all other needs-review (parity/structural/wrong_pdf/meta_leak) go to the original attempter. A task falls to its highest-touch category (reviewer > attempter > backfill > no issues). Updated build_contributor_feedback.py + README (routing note, reordered deliverables table to the 5 that ship, moved secondary ones to a note).
