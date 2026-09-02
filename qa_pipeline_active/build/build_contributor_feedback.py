@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Emit contributor_feedback.csv for needs-review tasks whose needs-drivers are EXCLUSIVELY
-parity and/or structural (broken link). Uses the plain-language, reviewer-facing prose produced
-by qa_active_external.js (phase_external.json) — the same cleaned bullets that feed external_feedback
-— so the contributor gets clear "what to fix" language: the specific parity break, the specific
-broken link, plus a little feedback on their scores/justifications. Also writes
-contributor_feedback_ids.json so build_sheets excludes these from external_feedback.csv."""
+"""Emit contributor_feedback.csv — the ATTEMPTER pool of needs-review tasks.
+
+ROUTING (a needs-review task falls to its HIGHEST-TOUCH driver):
+  - REVIEWER (high touch) — {no_valid_stump, uk_in_session, not_healthcare}. If a task has ANY of
+    these it goes to the reviewer (external_feedback.csv), even if it also has attempter-fixable
+    issues. These need reviewer judgment / re-collection, not just the attempter redoing the task.
+  - ATTEMPTER (lower touch) — everything else that's needs-review: parity, a short/broken session
+    (structural), a wrong-PDF upload, and a user meta-instruction leak (meta_leak). A task whose
+    needs-drivers are ONLY these goes back to the original attempter, here.
+
+Uses the plain-language prose from qa_active_external.js (phase_external.json) so the attempter gets
+clear "what to fix" language. Also writes contributor_feedback_ids.json so build_sheets excludes
+these from external_feedback.csv."""
 import csv, json, os, re
 
 RUN = os.path.dirname(os.path.abspath(__file__))
 NEEDS = {'parity', 'uk_in_session', 'no_valid_stump', 'meta_leak', 'not_healthcare', 'structural', 'wrong_pdf'}
-# Contributor-fixable needs-drivers: a task routes to the contributor pool ONLY when its needs-drivers
-# are exclusively these (parity, a short/broken session -> structural, and a wrong-PDF upload). Any
-# reviewer-routed issue (uk_in_session, no_valid_stump, meta_leak, not_healthcare) keeps it external.
-CONTRIB_FIXABLE = {'parity', 'structural', 'wrong_pdf'}
+# High-touch drivers that force a task to the REVIEWER (external_feedback). Any of these present ->
+# reviewer, regardless of what else the task has (highest-touch wins).
+REVIEWER = {'no_valid_stump', 'uk_in_session', 'not_healthcare'}
 
 findings = {r['task_id']: r for r in csv.DictReader(open(f'{RUN}/deliverables/eval_findings.csv'))}
 _ep = os.path.join(RUN, 'phase_external.json')
@@ -28,8 +34,8 @@ for t, r in findings.items():
         continue
     drivers = {d.strip() for d in (r.get('drivers', '') or '').split(',')}
     nd = drivers & NEEDS
-    # contributor feedback ONLY when the needs-drivers are exclusively contributor-fixable
-    if not nd or not (nd <= CONTRIB_FIXABLE):
+    # highest-touch wins: any reviewer driver -> reviewer (skip here); only attempter-fixable -> here
+    if not nd or (nd & REVIEWER):
         continue
     selected.append(t)
     e = EXT.get(t, {})

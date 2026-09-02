@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] Needs-review routing: reviewer (high touch) = {no_valid_stump, uk_in_session, not_healthcare}; all other needs-review (parity/structural/wrong_pdf/meta_leak) go to the original attempter. A task falls to its highest-touch category (reviewer > attempter > backfill > no issues). Updated build_contributor_feedback.py + README (routing note, reordered deliverables table to the 5 that ship, moved secondary ones to a note).
+
 * [2026-09-01] README: folded the red-flag/triage gate into a `†` footnote on the eval chart (referenced by the ratings & justif rows) instead of a standalone section.
 
 * [2026-09-01] README clarity: removed the eval-workflow ASCII diagram, clarified that the per-task "case file" contains the full transcripts, and explained the legacy `phase*` filenames.

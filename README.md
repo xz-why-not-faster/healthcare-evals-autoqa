@@ -172,6 +172,15 @@ any NEEDS -> "needs review"   |   else any BACK -> "backfill"   |   else "no iss
 - **needs review** — not fixable by editing ratings; the task must be re-collected/regenerated.
 - **backfill** — fixable by rewriting scores/justifications in place.
 
+**A task falls to its highest-touch category** (touch = how much intervention it needs):
+**reviewer > attempter > backfill > no issues.** So `needs review` further splits by who owns the fix —
+
+- **Reviewer (high touch)** — a task with `no_valid_stump`, `uk_in_session`, or `not_healthcare` goes
+  to the reviewer (`external_feedback.csv`), *even if it also has lower-touch issues*. These need
+  reviewer judgment / re-collection, not just the attempter redoing the task.
+- **Original attempter (lower touch)** — every other needs-review task (`parity`, `structural`,
+  `wrong_pdf`, `meta_leak`) is sent back to the attempter (`contributor_feedback.csv`) to fix.
+
 | Driver | Fired when | From | Category |
 |---|---|---|---|
 | `parity` | parity `verdict==FAIL` or `severity∈{major,blocker}` | parity | needs review |
@@ -228,16 +237,19 @@ filtered to L1 in place** (so any L10 step runs before it) and reads `contributo
   cb≥3 & my≤2`; else keep). **Never a self-assigned 1/4/5.**
 - **Clinical & triage scores are never re-judged upward**; Overall moves only via the gating cap.
 
+**The deliverables that ship** (most important first):
+
 | Deliverable | Scope | What it contains / how |
 |---|---|---|
-| **`eval_findings.csv`** | all tasks | one row/task: `category`, `drivers`, and every flag column (from `categorize.py`). |
-| **`worklist.json`** | backfill tasks | the correction plan — per provider, all 11 dims, `orig` + `fixes{needs_rewrite, target_score, reasons}`. Post-pass **recomputes the gating cap from the corrected dims** so a fixed clinical/safety cascades into Overall. |
-| **`backfill_melt.csv`** | backfill, rewritten dims | LONG format `task, step, value` — a rating row + a `_just` row per rewritten dim. Score prefers the revoiced `phase_backfill` value, else the worklist target. `step` encodes the **form step-id** (see below). |
-| **`backfill_forms.csv`** | backfill, L1 | WIDE reviewer form: base cols + per-provider `p{n}_{overall,clinical,triage}_{rating,justification}` + `p{n}_generated_upload` + the persona block + `ratings_qc_flag`. |
+| **`backfill_melt.csv`** | backfill, rewritten dims | The corrected ratings/justifications, LONG format `task, step, value` — a rating row + a `_just` row per rewritten dim. Score prefers the revoiced `phase_backfill` value, else the worklist target. `step` encodes the **form step-id** (below). *Shared with the FDE.* |
 | **`persona_updates.csv`** | backfill w/ persona mismatch | `task_id, original_persona, persona, persona_name, persona_description, needs_bot_attempt` (`yes` if the task also has a dim rewrite). |
-| **`contributor_feedback.csv`** | needs-review whose drivers ⊆ {parity, structural, wrong_pdf} | `task_id, contributor feedback` — the cleaned `session`+`artifact`+`misc` prose from `phase_external.json`, **excluding** the ratings notes. Writes `contributor_feedback_ids.json` to keep these out of `external_feedback.csv`. |
-| **`external_feedback.csv`** | needs-review (minus the above) | `session / artifact_upload / rate_justification / misc` reviewer-facing prose (from `qa_active_external.js`) + the 3 session links. |
-| **`ratings_disagreements.csv`** | any disagreeing dim | adjudication sheet: `cb_score, my_score, clamped_target, contributor_justification, my_reason, rubric_basis` (the exact rubric anchor at `my_score`), sorted bucket-cross first. |
+| **`contributor_feedback.csv`** | needs-review, **attempter pool** (no reviewer driver — only parity / structural / wrong_pdf / meta_leak) | `task_id, contributor feedback` — the cleaned `session`+`artifact`+`misc` prose from `phase_external.json`, **excluding** the ratings notes. Writes `contributor_feedback_ids.json` to keep these out of `external_feedback.csv`. |
+| **`external_feedback.csv`** | needs-review, **reviewer pool** (has a high-touch driver) | `session / artifact_upload / rate_justification / misc` reviewer-facing prose (from `qa_active_external.js`) + the 3 session links. |
+| **`eval_findings.csv`** | all tasks | one row/task: `category`, `drivers`, and every flag column (from `categorize.py`). |
+
+*Also produced (intermediate / secondary):* `worklist.json` (the backfill plan the backfill eval reads),
+`backfill_forms.csv` (a wide reviewer view of the same backfill data), `ratings_disagreements.csv`
+(bucket-cross adjudication sheet).
 
 **The backfill step-id mapping** (`backfill_melt.csv` / `backfill_forms.csv` must match the collection
 form exactly). Field base per dim: `overall→overall_rating`, `completeness→completeness_quality`, all
@@ -260,7 +272,7 @@ to the right people. Each takes one deliverable CSV:
 |---|---|---|
 | `external_feedback.csv` | [update needs-review metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_41172f3f48b5e9111a6619b2bf9699cf) | Updates task metadata for the "needs review" feedback sent to reviewers so it shows up in taxonomy. Tasks still need to be **backfilled**, then sent to **L1**. |
 | `persona_updates.csv` | [update persona metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_acf8c2e3ef800eb525559d5c65debf76) | Updates persona metadata. If a persona correction is the **only** update a task needs, it **auto-sends the task to L12**. |
-| `contributor_feedback.csv` | [send back to attempter](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_b7fd9a33df0bc7e43f7b92d89760aa39) | Sends the task back to its **original attempter** with task-specific feedback — for tasks whose only issues are parity / broken links / wrong chat-PDF. Tasks with `uk_in_session` or model-stump issues are **not** sent back. |
+| `contributor_feedback.csv` | [send back to attempter](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_b7fd9a33df0bc7e43f7b92d89760aa39) | Sends the task back to its **original attempter** with task-specific feedback — the lower-touch needs-review tasks (parity / broken links / wrong chat-PDF / meta-instruction leak). Tasks with a high-touch driver (`no_valid_stump`, `uk_in_session`, `not_healthcare`) go to the reviewer instead. |
 | `backfill_melt.csv` | *(no Compass workflow yet)* | Currently **shared directly with the FDE** for the post-eval workflow (the corrected ratings/justifications get applied from it). |
 
 ---
