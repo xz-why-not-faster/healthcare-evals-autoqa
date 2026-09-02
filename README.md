@@ -183,13 +183,13 @@ any NEEDS -> "needs review"   |   else any BACK -> "backfill"   |   else "no iss
 
 | Driver | Fired when | From | Category |
 |---|---|---|---|
-| `parity` | parity `verdict==FAIL` or `severity∈{major,blocker}` | parity | needs review |
-| `no_valid_stump` | `valid_model_stump.my_verdict==NO_VALID_STUMP` | justif | needs review |
-| `uk_in_session` | model used UK guidance AND `country∉{US,IN}` (claude/gemini) | uk | needs review |
-| `meta_leak` | a `rate_self` / `us_guidance` user turn | misc | needs review |
-| `not_healthcare` | `healthcare_related==false` | misc | needs review |
-| `structural` | `min(turns) < 10` | gates | needs review |
-| `wrong_pdf` | uploaded PDF is a different conversation | pdfcheck | needs review |
+| `parity` | parity `verdict==FAIL` or `severity∈{major,blocker}` | parity | needs review → **attempter** |
+| `no_valid_stump` | `valid_model_stump.my_verdict==NO_VALID_STUMP` | justif | needs review → **reviewer** |
+| `uk_in_session` | model used UK guidance AND `country∉{US,IN}` (claude/gemini) | uk | needs review → **reviewer** |
+| `meta_leak` | a `rate_self` / `us_guidance` user turn | misc | needs review → **attempter** |
+| `not_healthcare` | `healthcare_related==false` | misc | needs review → **reviewer** |
+| `structural` | `min(turns) < 10` | gates | needs review → **attempter** |
+| `wrong_pdf` | uploaded PDF is a different conversation | pdfcheck | needs review → **attempter** |
 | `ratings` | a bucket-cross disagreement | ratings | backfill |
 | `justif` | `consistent_with_session.flag==false` | justif | backfill |
 | `citation` | clinical/safety ≤3 with an uncited medical claim | evidence | backfill |
