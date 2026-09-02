@@ -10,6 +10,11 @@ It is a set of **Claude Code Workflow evals** (LLM judges, in `qa_pipeline_activ
 orchestrated by small deterministic Python scripts (`qa_pipeline_active/build/`). The LLM does the
 judging; Python does the merging, categorization, and deliverable formatting.
 
+> **Sandbox in sync:** the in-task **sandbox** audit (what contributors see) is kept aligned with these
+> evals via the [`sandbox-eval-sync`](.claude/skills/sandbox-eval-sync/) skill — it stores the live
+> sandbox prompt and recommends surgical edits whenever an eval here changes (recommends only, never
+> auto-applies).
+
 - [Prerequisites & setup](#prerequisites) · [Data source](#data-source--the-input-csv) ·
   [Running it](#running-it--one-entrypoint)
 - **[The eval workflow](#the-eval-workflow) ← what gets ingested and evaluated at each step**

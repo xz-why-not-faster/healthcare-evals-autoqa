@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README: mention the sandbox-eval-sync skill near the top (keeps the in-task sandbox audit aligned with these evals).
+
 * [2026-09-01] README: ordered the driver table by touch — reviewer drivers first, then attempter, then backfill.
 
 * [2026-09-01] README: driver table Category column now shows the needs-review split per driver (→ reviewer vs → attempter).
