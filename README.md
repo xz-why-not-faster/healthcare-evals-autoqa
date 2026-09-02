@@ -204,6 +204,24 @@ Overall ≤3` · else 5.
 
 ---
 
+## Corrections after the first run — the verify step
+
+`categorize` gives a *first-pass* split. Before deliverables, a **verify** step re-checks the flags
+most prone to false positives, so tasks aren't wrongly held (`run.py verify` → 3 Workflows →
+`run.py verify-apply`, which flips/clears and re-categorizes):
+
+- **No-model-stump re-run** — `no_valid_stump` verdicts flip ~half the time on borderline cases, so
+  every no-stump task is re-run through the stump eval; any that finds a genuine stump the second time
+  is flipped out of needs-review.
+- **Contributor-feedback recheck** — for tasks that *stay* no-stump, re-adjudicate on the real
+  transcript against the contributor's own case: their `CB: model failure justification` and their
+  `response to eval` (their reply to the sandbox). If their argument holds under the rubric +
+  red-flag/triage gate, the stump is upheld and the task flips.
+- **Wrong-PDF LLM recheck** — the deterministic PDF-vs-link check over-flags image-rendered / garbled
+  PDFs, so each `wrong_pdf` flag gets a second LLM pass and false positives are cleared.
+
+The deliverables are then built on the corrected split.
+
 ## The deliverables — how each is built
 
 Everything lands in `<run>/deliverables/`. Build order matters in two places: **`build_worklist.py`
@@ -224,7 +242,7 @@ filtered to L1 in place** (so any L10 step runs before it) and reads `contributo
 | **`backfill_melt.csv`** | backfill, rewritten dims | LONG format `task, step, value` — a rating row + a `_just` row per rewritten dim. Score prefers the revoiced `phase_backfill` value, else the worklist target. `step` encodes the **form step-id** (see below). |
 | **`backfill_forms.csv`** | backfill, L1 | WIDE reviewer form: base cols + per-provider `p{n}_{overall,clinical,triage}_{rating,justification}` + `p{n}_generated_upload` + the persona block + `ratings_qc_flag`. |
 | **`persona_updates.csv`** | backfill w/ persona mismatch | `task_id, original_persona, persona, persona_name, persona_description, needs_bot_attempt` (`yes` if the task also has a dim rewrite). |
-| **`contributor_feedback.csv`** | needs-review whose drivers ⊆ {parity, structural} | `task_id, contributor feedback` — the cleaned `session`+`misc` prose from `phase_external.json`, **excluding** the ratings notes. Writes `contributor_feedback_ids.json` to keep these out of `external_feedback.csv`. |
+| **`contributor_feedback.csv`** | needs-review whose drivers ⊆ {parity, structural, wrong_pdf} | `task_id, contributor feedback` — the cleaned `session`+`artifact`+`misc` prose from `phase_external.json`, **excluding** the ratings notes. Writes `contributor_feedback_ids.json` to keep these out of `external_feedback.csv`. |
 | **`external_feedback.csv`** | needs-review (minus the above) | `session / artifact_upload / rate_justification / misc` reviewer-facing prose (from `qa_active_external.js`) + the 3 session links. |
 | **`ratings_disagreements.csv`** | any disagreeing dim | adjudication sheet: `cb_score, my_score, clamped_target, contributor_justification, my_reason, rubric_basis` (the exact rubric anchor at `my_score`), sorted bucket-cross first. |
 
@@ -237,6 +255,19 @@ others = the dim name; the justification field = base + `_just`. The step id dep
   `2→…-1d5d1f26cd9c`, `3→…-084a3c17e83d`.
 
 Melt `step` = `"{stepid}.{base}_{n}"` (rating) / `"{stepid}.{base}_just_{n}"` (justification).
+
+---
+
+## Post-eval workflows (Compass)
+
+The three feedback deliverables feed Compass workflows that push the results back into the tracker /
+to the right people. Each takes one deliverable CSV:
+
+| Deliverable CSV | Compass workflow | What it does |
+|---|---|---|
+| `external_feedback.csv` | [update needs-review metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_41172f3f48b5e9111a6619b2bf9699cf) | Updates task metadata for the "needs review" feedback sent to reviewers so it shows up in taxonomy. Tasks still need to be **backfilled**, then sent to **L1**. |
+| `persona_updates.csv` | [update persona metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_acf8c2e3ef800eb525559d5c65debf76) | Updates persona metadata. If a persona correction is the **only** update a task needs, it **auto-sends the task to L12**. |
+| `contributor_feedback.csv` | [send back to attempter](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_b7fd9a33df0bc7e43f7b92d89760aa39) | Sends the task back to its **original attempter** with task-specific feedback — for tasks whose only issues are parity / broken links / wrong chat-PDF. Tasks with `uk_in_session` or model-stump issues are **not** sent back. |
 
 ---
 
