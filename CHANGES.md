@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README: noted backfill_melt is currently shared directly with the FDE (no Compass workflow yet), and added a top "Work in progress" section (tracking returned L1 tasks, L10 eval workflows, cross-eval quality/contributor tracking).
+
 * [2026-09-01] README: documented the post-eval Compass workflows (external→needs-review metadata, persona→L12 auto-send, contributor→send-back-to-attempter) and a "corrections after the first run" section for the verify passes.
 
 * [2026-09-01] sandbox-eval-sync skill: stores the live sandbox audit prompt and recommends surgical edits to keep it in sync with our chat-session evals (recommends only, never auto-applies) — first sync adds the input-parity/no-inferred-receipt rule to the sandbox parity section.

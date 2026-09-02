@@ -14,8 +14,14 @@ judging; Python does the merging, categorization, and deliverable formatting.
   [Running it](#running-it--one-entrypoint)
 - **[The eval workflow](#the-eval-workflow) ← what gets ingested and evaluated at each step**
 - [Categorization](#categorization--drivers--category) ·
-  **[The deliverables](#the-deliverables--how-each-is-built)** · [Repo layout](#repo-layout) ·
-  [Glossary](#glossary)
+  **[The deliverables](#the-deliverables--how-each-is-built)** ·
+  [Post-eval workflows](#post-eval-workflows-compass) · [Repo layout](#repo-layout) · [Glossary](#glossary)
+
+## 🚧 Work in progress
+
+- **Tracking L1 tasks returned to the original attempter** in the eval (the `contributor_feedback` send-backs — where they go, whether they come back fixed).
+- **L10 eval workflows** (the reviewer-level pass — not yet part of this packaged flow).
+- **Cross-eval tracking** — general task quality and contributor quality across runs.
 
 ---
 
@@ -268,6 +274,7 @@ to the right people. Each takes one deliverable CSV:
 | `external_feedback.csv` | [update needs-review metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_41172f3f48b5e9111a6619b2bf9699cf) | Updates task metadata for the "needs review" feedback sent to reviewers so it shows up in taxonomy. Tasks still need to be **backfilled**, then sent to **L1**. |
 | `persona_updates.csv` | [update persona metadata](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_acf8c2e3ef800eb525559d5c65debf76) | Updates persona metadata. If a persona correction is the **only** update a task needs, it **auto-sends the task to L12**. |
 | `contributor_feedback.csv` | [send back to attempter](https://dashboard.scale.com/corp/genai-ops-hub/compass/playground?workflow=cmp_b7fd9a33df0bc7e43f7b92d89760aa39) | Sends the task back to its **original attempter** with task-specific feedback — for tasks whose only issues are parity / broken links / wrong chat-PDF. Tasks with `uk_in_session` or model-stump issues are **not** sent back. |
+| `backfill_melt.csv` | *(no Compass workflow yet)* | Currently **shared directly with the FDE** for the post-eval workflow (the corrected ratings/justifications get applied from it). |
 
 ---
 
