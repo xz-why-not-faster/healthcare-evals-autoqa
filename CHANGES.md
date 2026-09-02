@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README: folded the red-flag/triage gate into a `†` footnote on the eval chart (referenced by the ratings & justif rows) instead of a standalone section.
+
 * [2026-09-01] README clarity: removed the eval-workflow ASCII diagram, clarified that the per-task "case file" contains the full transcripts, and explained the legacy `phase*` filenames.
 
 * [2026-09-01] README clarity: rewrote "The eval workflow" as a plain 3-stage narrative (ingest → battery → categorize) and moved the by-hand run.py command block into an Appendix.
