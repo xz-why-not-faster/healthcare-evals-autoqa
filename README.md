@@ -93,36 +93,30 @@ Three stages turn the raw data into one findings row per task:
    write **one case file per task** (`workspace/task_<id>.json`). The case file bundles the scenario +
    all three transcripts + the contributor's ratings — it is the single input every eval reads.
 2. **Battery** (`build/battery_nt.js`) — the LLM evals read each case file (in parallel, one agent per
-   task) and each writes a `phase_*.json` of findings. Separately, `pdf_link_check.py` writes
-   `phase_pdfcheck.json` (uploaded chat-PDF vs share-link).
-3. **Categorize** (`categorize.py`) — merge all the phase files into one CSV:
+   task) and each writes its findings to its own small JSON, one per eval (listed in the table below).
+   Separately, `pdf_link_check.py` checks each uploaded chat-PDF against its share link.
+3. **Categorize** (`categorize.py`) — merge all those per-eval JSONs into one CSV:
    `deliverables/eval_findings.csv`, one row per task with its **category** (needs review / backfill /
    no issues) and every flag.
 
-```
-V19 CSV + share links ──ingest──▶  workspace/task_<id>.json   (case file, 1 per task)
-                                            │
-                                    battery (LLM evals) + pdf_link_check
-                                            ▼
-                          phase_*.json  (parity · ratings · justif · evidence · low_effort ·
-                                         uk · misc · persona · progdisc · pdfcheck)
-                                            │
-                                       categorize
-                                            ▼
-                          deliverables/eval_findings.csv   (category + flags, 1 row/task)
-```
+> **About the `phase*` filenames** (`phase2_parity.json`, `phase_ratings.json`, `phase_misc.json`, …):
+> each is just one eval's output JSON. The `phase` prefix and the numbers are leftovers from an earlier
+> pipeline and mean nothing now — read each as "the ⟨parity / ratings / misc / …⟩ output."
 
-### What gets ingested — the case file
+### The case file — what every eval reads
 
-Each `workspace/task_<id>.json` has four keys: `task_id`, `shared`, `providers`, `gates`.
+A **case file** is the per-task JSON at `workspace/task_<id>.json` that `ingest_active.py` builds — one
+file packaging everything an eval needs to judge that task. **Yes, it contains the full transcripts**
+(the actual scraped conversation turns for all three models), not just metadata. Its keys:
 
-- **`shared`** — `persona`, `modality`, `tier`, `task category`, `country`, `prompt`,
+- **`shared`** — the task setup: `persona`, `modality`, `tier`, `task category`, `country`, `prompt`,
   `user scenario`, `desired end state`, `trajectory plan`.
-- **`providers`** — keyed `chatgpt` / `claude` / `gemini`; each has `transcript.turns`
-  (`[{user, response}, …]`), `links` (`session_link`, `session_pdf`, `session_artifacts`), and
-  `ratings` (the 11 dims, each `{score 1–5, justification}` — **the contributor data being audited**).
-- **`gates`** (precomputed) — `min_length` (all 3 providers ≥15 real user turns), `shared_prompt`
-  (first user turn identical), `same_uploads` (not compared in active ingest).
+- **`providers`** — one entry per model (`chatgpt` / `claude` / `gemini`), each with:
+  - `transcript.turns` — the actual conversation, `[{user, response}, …]`
+  - `links` — `session_link`, `session_pdf`, `session_artifacts`
+  - `ratings` — the contributor's 11 scores + justifications (**the data being audited**)
+- **`gates`** — precomputed checks: `min_length` (≥15 user turns each), `shared_prompt` (first user
+  turn identical), `same_uploads` (not compared in active ingest).
 
 The 11 dimensions: `overall, clinical_accuracy, completeness, communication_tone,
 instruction_following, interaction_efficiency, multimodal_fidelity, personal_context, safety_triage,

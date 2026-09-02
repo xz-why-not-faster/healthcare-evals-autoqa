@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README clarity: removed the eval-workflow ASCII diagram, clarified that the per-task "case file" contains the full transcripts, and explained the legacy `phase*` filenames.
+
 * [2026-09-01] README clarity: rewrote "The eval workflow" as a plain 3-stage narrative (ingest → battery → categorize) and moved the by-hand run.py command block into an Appendix.
 
 * [2026-09-01] README: noted backfill_melt is currently shared directly with the FDE (no Compass workflow yet), and added a top "Work in progress" section (tracking returned L1 tasks, L10 eval workflows, cross-eval quality/contributor tracking).
