@@ -78,47 +78,43 @@ back. Two equivalent ways to drive it:
 [`run-l1-eval`](.claude/skills/run-l1-eval/SKILL.md) skill; it sequences every step, launches the
 two Workflows, and enforces the eval guardrails.
 
-**B. By hand with `run.py`:**
-
-```bash
-python3 qa_pipeline_active/run.py ingest 2026-09-01_L1 --csv "$CSV" --ids ids.json
-#   ── CHECKPOINT 1: run Workflow qa_pipeline_active/build/battery_nt.js (args = the task ids)
-python3 qa_pipeline_active/run.py persist      2026-09-01_L1 --output battery.output
-python3 qa_pipeline_active/run.py categorize   2026-09-01_L1
-python3 qa_pipeline_active/run.py verify       2026-09-01_L1 --csv "$CSV"
-#   ── CHECKPOINT V: re-run stump (qa_active_justif.js), PDF recheck (qa_active_pdfrecheck.js),
-#      CB-feedback recheck (qa_active_stumprecheck.js) over the printed id lists
-python3 qa_pipeline_active/run.py verify-apply 2026-09-01_L1 --stump S.output --pdf P.output --cb C.output
-#   ── CHECKPOINT 2: run Workflows qa_active_backfill.js, qa_active_revoice.js, qa_active_external.js
-python3 qa_pipeline_active/run.py deliverables 2026-09-01_L1 --csv "$CSV"
-```
-
-Each command prints exactly what to do next (the Workflow to launch, the task ids to pass). `RUN`
-is a bare label (→ `qa_pipeline_active/<label>/`) or a path. Everything for a run lives in that
-dated folder; the build scripts run *from inside* it. `PIPELINE.md` has the manual step-by-step.
+**B. By hand with `run.py`** — the same steps as explicit commands (ingest → persist → categorize →
+verify → verify-apply → deliverables), with two Workflow checkpoints in between. See
+[Appendix: manual `run.py` commands](#appendix-manual-runpy-commands). Each command prints exactly
+what to do next; `PIPELINE.md` has the full step-by-step.
 
 ---
 
 ## The eval workflow
 
+Three stages turn the raw data into one findings row per task:
+
+1. **Ingest** (`ingest_active.py`) — read the V19 CSV, scrape each provider's live share link, and
+   write **one case file per task** (`workspace/task_<id>.json`). The case file bundles the scenario +
+   all three transcripts + the contributor's ratings — it is the single input every eval reads.
+2. **Battery** (`build/battery_nt.js`) — the LLM evals read each case file (in parallel, one agent per
+   task) and each writes a `phase_*.json` of findings. Separately, `pdf_link_check.py` writes
+   `phase_pdfcheck.json` (uploaded chat-PDF vs share-link).
+3. **Categorize** (`categorize.py`) — merge all the phase files into one CSV:
+   `deliverables/eval_findings.csv`, one row per task with its **category** (needs review / backfill /
+   no issues) and every flag.
+
 ```
-V19 CSV + live share links
-        │  ingest_active.py          → scrape transcripts, attach contributor ratings
-        ▼
-workspace/task_<id>.json   ← the "case file" every eval reads
-        │  build/battery_nt.js  (Workflow: 6 evals in parallel, each fans out per task)
-        ▼
-phase2_parity · phase_ratings · phase3b_justif · phase_evidence · phase_lowffort
-        + (detectors splits into) phase2_uk · phase_misc · phase_persona · phase_progdisc
-        │  categorize.py  (+ phase_pdfcheck.json from pdf_link_check.py)
-        ▼
-deliverables/eval_findings.csv   (one row/task: category + every flag)
+V19 CSV + share links ──ingest──▶  workspace/task_<id>.json   (case file, 1 per task)
+                                            │
+                                    battery (LLM evals) + pdf_link_check
+                                            ▼
+                          phase_*.json  (parity · ratings · justif · evidence · low_effort ·
+                                         uk · misc · persona · progdisc · pdfcheck)
+                                            │
+                                       categorize
+                                            ▼
+                          deliverables/eval_findings.csv   (category + flags, 1 row/task)
 ```
 
 ### What gets ingested — the case file
 
-`ingest_active.py` builds `workspace/task_<id>.json` from the CSV row(s) + the live-scraped
-transcripts. Keys: `task_id`, `shared`, `providers`, `gates`.
+Each `workspace/task_<id>.json` has four keys: `task_id`, `shared`, `providers`, `gates`.
 
 - **`shared`** — `persona`, `modality`, `tier`, `task category`, `country`, `prompt`,
   `user scenario`, `desired end state`, `trajectory plan`.
@@ -318,3 +314,23 @@ is git-ignored (regenerable, and contains PII). The repo is code + docs only.
 
 The 11 rubric dimensions with their 1–5 anchors, gating rules, and evidence requirements are in
 [`.claude/skills/qa-shared/rubric.md`](.claude/skills/qa-shared/rubric.md).
+
+---
+
+## Appendix: manual `run.py` commands
+
+The by-hand equivalent of the `run-l1-eval` skill. `RUN` is a bare label (→ `qa_pipeline_active/<label>/`)
+or a path; everything for a run lives in that dated folder and the build scripts run *from inside* it.
+
+```bash
+python3 qa_pipeline_active/run.py ingest 2026-09-01_L1 --csv "$CSV" --ids ids.json
+#   ── CHECKPOINT 1: run Workflow qa_pipeline_active/build/battery_nt.js (args = the task ids)
+python3 qa_pipeline_active/run.py persist      2026-09-01_L1 --output battery.output
+python3 qa_pipeline_active/run.py categorize   2026-09-01_L1
+python3 qa_pipeline_active/run.py verify       2026-09-01_L1 --csv "$CSV"
+#   ── CHECKPOINT V: re-run stump (qa_active_justif.js), PDF recheck (qa_active_pdfrecheck.js),
+#      CB-feedback recheck (qa_active_stumprecheck.js) over the printed id lists
+python3 qa_pipeline_active/run.py verify-apply 2026-09-01_L1 --stump S.output --pdf P.output --cb C.output
+#   ── CHECKPOINT 2: run Workflows qa_active_backfill.js, qa_active_revoice.js, qa_active_external.js
+python3 qa_pipeline_active/run.py deliverables 2026-09-01_L1 --csv "$CSV"
+```
