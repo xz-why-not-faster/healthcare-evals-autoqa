@@ -46,16 +46,32 @@ This splits the battery result into the `phase_*.json` files.
 ```
 python3 qa_pipeline_active/run.py categorize <LABEL>
 ```
-Produces `deliverables/eval_findings.csv` + `worklist.json`, and prepares the backfill /
-external inputs. It prints **Checkpoint 2**.
+Produces `deliverables/eval_findings.csv` + `worklist.json` (preliminary).
 
-### 4. Checkpoint 2 — backfill + feedback (Workflows)
+### 4. Verify passes (Workflows) — flip over-flagged tasks
+```
+python3 qa_pipeline_active/run.py verify <LABEL> --csv "<CSV>"
+```
+Writes the verify inputs and prints **Checkpoint V**. Run these Workflows over the printed id lists,
+saving each `.output`:
+- `qa_active_justif.js` over `verify/nostump_ids.json` — re-run the stump eval (flip any that now find one)
+- `qa_active_pdfrecheck.js` (args `{run, ids}`) over `verify/wrongpdf_ids.json` — clear false-positive wrong_pdf
+- `qa_active_stumprecheck.js` (args `{run, ids}`) over the still-no-stump ids — re-adjudicate against the
+  contributor's `CB: model failure justification` + `response to eval`
+Then apply the results and re-categorize:
+```
+python3 qa_pipeline_active/run.py verify-apply <LABEL> --stump <justif.output> --pdf <pdfrecheck.output> --cb <stumprecheck.output>
+```
+It flips the confirmed stumps, clears false-positive PDFs, re-runs categorize, refreshes the backfill /
+external inputs, and prints **Checkpoint 2**.
+
+### 5. Checkpoint 2 — backfill + feedback (Workflows)
 Run these over this run's task ids, saving each result into the run folder:
 - `qa_active_backfill.js` → `phase_backfill.json` (rewrite flagged justifications at the kept score)
 - `qa_active_revoice.js` (contributor voice pass)
 - `qa_active_external.js` → `phase_external.json` (reviewer-facing prose)
 
-### 5. Deliverables
+### 6. Deliverables
 ```
 python3 qa_pipeline_active/run.py deliverables <LABEL> --csv "<CSV>"
 ```

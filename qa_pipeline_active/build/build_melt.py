@@ -42,7 +42,7 @@ for t, wl in worklist.items():
     bfp = (BF.get(t, {}) or {}).get('providers', {})
     for prov, pd in wl['providers'].items():
         for dim, fx in pd['fixes'].items():
-            if not fx.get('needs_rewrite'): continue
+            if not (fx.get('needs_rewrite') or fx.get('na_score_fix')): continue
             base = FIELD.get(dim)
             if not base: continue
             # resolve step id + suffix
@@ -54,10 +54,11 @@ for t, wl in worklist.items():
                 if prov not in FORMC: continue
                 stepid, n = FORMC[prov]
             if not stepid: continue
-            # values: prefer the (revoiced) phase_backfill entry; fall back to worklist target
+            # values: prefer the (revoiced) phase_backfill entry; else worklist target + the
+            # contributor's original justification (score-only N/A fixes keep the "N/A" note).
             bj = ((bfp.get(prov, {}) or {}).get(dim, {}) or {})
             score = bj.get('score', fx.get('target_score'))
-            just = bj.get('justification', '')
+            just = bj.get('justification') or (pd.get('orig', {}).get(dim, {}) or {}).get('justification', '')
             rows.append({'task': t, 'step': f'{stepid}.{base}_{n}', 'value': score})
             rows.append({'task': t, 'step': f'{stepid}.{base}_just_{n}', 'value': just})
 

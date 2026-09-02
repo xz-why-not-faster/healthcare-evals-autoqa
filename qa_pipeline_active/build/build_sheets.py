@@ -109,7 +109,8 @@ for r in findings:
         wrp = wr.get(prov, {})
         for key, wsdim in DIMKEYS:
             # score: worklist target if rewritten else contributor original
-            fx = ((wl.get(prov, {}) or {}).get('fixes', {}) or {}).get(key, {})
+            # (worklist fixes + phase_backfill are keyed by the FULL dim name, not the short key)
+            fx = ((wl.get(prov, {}) or {}).get('fixes', {}) or {}).get(wsdim, {})
             orig_score = None
             try: orig_score = int(str(wrp.get(wsdim, {}).get('score')).strip())
             except: orig_score = wrp.get(wsdim, {}).get('score')
@@ -117,7 +118,7 @@ for r in findings:
             # justification: backfilled (revoiced) if rewritten else original
             just = wrp.get(wsdim, {}).get('justification', '')
             if fx.get('needs_rewrite'):
-                bj = ((bfd.get(prov, {}) or {}).get(key, {}) or {})
+                bj = ((bfd.get(prov, {}) or {}).get(wsdim, {}) or {})
                 if bj.get('justification'): just = bj['justification']
             row[f'p{i}_{key}_rating'] = score
             row[f'p{i}_{key}_justification'] = just

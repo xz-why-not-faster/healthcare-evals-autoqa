@@ -2,7 +2,7 @@
 """Build worklist.json for the backfill/revoice evals from the phase files + workspace ratings.
 Only backfill-category tasks. Per provider: orig (contributor overall/clinical/triage score+just)
 + fixes (per dim: target_score, needs_rewrite, reasons)."""
-import json, os, csv
+import json, os, csv, re
 RUN = os.path.dirname(os.path.abspath(__file__))
 WS  = os.path.join(RUN, '..', 'workspace')
 def L(fn): return json.load(open(os.path.join(RUN, fn)))
@@ -33,8 +33,18 @@ def ws(t):
     return out
 
 wl={}
+def _placeholder_just(s):
+    # a TRUE content-free placeholder (yes/no/n-a/none/blank) — NOT a short anchor phrase like
+    # "Excellent." or "All parts addressed", which convey a real judgment and are left alone.
+    a = re.sub(r'[^a-z0-9]', '', (s or '').lower())
+    return a in {'', 'yes', 'no', 'na', 'none', 'nil', 'tbd', 'notapplicable', 'nap', 'nan'}
+
+def _is_na(s):
+    return re.sub(r'[^a-z0-9]', '', (s or '').lower()) in {'na', 'notapplicable', 'nap', 'nan'}
+
 for t,fr in findings.items():
     if fr['category']!='backfill': continue
+    low_eff = 'low_effort' in (fr.get('drivers') or '')
     wsr=ws(t); rr=ratings.get(t,{}).get('providers',{}) or {}
     jj=justif.get(t,{}).get('providers',{}) or {}
     ev=evidence.get(t,{}).get('providers',{}) or {}
@@ -56,7 +66,7 @@ for t,fr in findings.items():
             try: oscore=int(str(wv.get('score')).strip())
             except: oscore=wv.get('score')
             orig[key]={'score':oscore,'justification':wv.get('justification','')}
-            reasons=[]; need=False; target=oscore
+            reasons=[]; need=False; na_fix=False; brief=False; target=oscore
             # ratings bucket-cross disagreement on this dim
             dv=(dims.get('dims') or {}).get(wsdim,{})
             my=dv.get('my_score'); cb=dv.get('cb_score')
@@ -78,6 +88,25 @@ for t,fr in findings.items():
                 xs=x if isinstance(x,str) else json.dumps(x)
                 if wsdim in xs or (wsdim=='clinical_accuracy' and 'clinical' in xs) or (wsdim=='safety_triage' and ('safety' in xs or 'triage' in xs)):
                     need=True; reasons.append('citation needed: '+xs)
+            # ---- low-effort justification cleanup (low_effort tasks only) ----
+            # A phoned-in placeholder (yes/no/N-A/none) on a low_effort task is handled in 3 buckets:
+            #   (1) CRITICAL dims (overall/clinical/safety) -> full substantive rewrite; N/A -> score 3.
+            #   (2) multimodal_fidelity / personal_context with "N/A" -> a REAL N/A, so keep the "N/A"
+            #       note at score 3 (multimodal is genuinely N/A on text tasks; personal_context sometimes).
+            #   (3) every other weak/placeholder dim -> a low-effort artifact, not a real N/A: BRIEF
+            #       one-sentence generic / lightly-transcript-referenced rewrite at the contributor's score.
+            if low_eff and not need and _placeholder_just(wv.get('justification','')):
+                is_na = _is_na(wv.get('justification',''))
+                if wsdim in ('overall','clinical_accuracy','safety_triage'):
+                    need=True
+                    if is_na: target=3; reasons.append('low_effort: "N/A" on a critical dim -> score 3 + full rewrite')
+                    else: reasons.append('low_effort: placeholder on a critical dim -> full rewrite at same score')
+                elif wsdim in ('multimodal_fidelity','personal_context') and is_na:
+                    na_fix=True; target=3; reasons.append('low_effort: real N/A dim -> score 3 (rubric N/A), "N/A" kept')
+                else:
+                    need=True; brief=True
+                    reasons.append('low_effort: weak justification -> BRIEF one-sentence generic/text-referenced rewrite at the same score')
+            # overall gating
             # overall gating
             if wsdim=='overall' and gv:
                 need=True; target=min(target if isinstance(target,int) else oscore, gcap); reasons.append(f'gating: overall capped to {gcap}')
@@ -85,7 +114,7 @@ for t,fr in findings.items():
             # factual medical claim with an inline external citation (rubric: score <=3 needs a source).
             if need and wsdim in ('clinical_accuracy','safety_triage') and isinstance(target,int) and target<=3:
                 reasons.append('verify EVERY factual medical claim (clinical/triage scored <=3) with an inline verifiable external citation (drug label / named guideline+year / DOI-PMID); soften or drop any claim you cannot source')
-            fixes[key]={'needs_rewrite':need,'target_score':target,'reasons':' ; '.join(reasons)}
+            fixes[key]={'needs_rewrite':need,'na_score_fix':na_fix,'brief':brief,'target_score':target,'reasons':' ; '.join(reasons)}
         # POST-PASS: recompute the gating cap from the CORRECTED dim scores (not the originals)
         # and cap Overall to it — so a corrected clinical/safety cascades to Overall, and Overall
         # is never left above the cap its final clinical/safety force.

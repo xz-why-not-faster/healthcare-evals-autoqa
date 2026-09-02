@@ -84,9 +84,35 @@ def cmd_persist(args):
 
 def cmd_categorize(args):
     run = resolve_run(args.run)
-    sh([PY, os.path.join(run, "categorize.py")])              # eval_findings.csv + worklist.json
+    sh([PY, os.path.join(run, "categorize.py")])              # eval_findings.csv + worklist.json (preliminary)
+    print(f"\n[categorize] done -> next: run.py verify {args.run} --csv <CSV>")
+
+
+def _backfill_external_inputs(run):
     sh([PY, os.path.join(run, "build_worklist.py")])          # backfill plan for the LLM eval
     sh([PY, os.path.join(run, "build_external_input.py")])    # reviewer-facing inputs for the LLM eval
+
+
+def cmd_verify(args):
+    run = resolve_run(args.run)
+    sh([PY, os.path.join(run, "build_verify_input.py"), args.csv])   # verify/pdf, verify/cb, id lists
+    ns = os.path.join(run, "verify", "nostump_ids.json")
+    wp = os.path.join(run, "verify", "wrongpdf_ids.json")
+    print("\n── CHECKPOINT V (verify) ─────────────────────────────────────")
+    print("Run these Claude Code Workflows, then save each .output:")
+    print(f"  qa_active_justif.js       args={{run,ids}} over {os.path.relpath(ns, HERE)}   (re-run stump)")
+    print(f"  qa_active_pdfrecheck.js   args={{run,ids}} over {os.path.relpath(wp, HERE)}   (PDF LLM recheck)")
+    print(f"  qa_active_stumprecheck.js args={{run,ids}} over the still-no-stump ids        (CB-feedback recheck)")
+    print(f"Then:  run.py verify-apply {args.run} [--stump <justif.output>] [--pdf <pdfrecheck.output>] [--cb <stumprecheck.output>]")
+
+
+def cmd_verify_apply(args):
+    run = resolve_run(args.run)
+    cmd = [PY, os.path.join(run, "apply_verify.py")]
+    for flag, val in (("--pdf", args.pdf), ("--stump", args.stump), ("--cb", args.cb)):
+        if val: cmd += [flag, val]
+    sh(cmd)                                    # applies flips/clears + re-runs categorize.py
+    _backfill_external_inputs(run)             # refresh backfill/external inputs on the FINAL categories
     print("\n── CHECKPOINT 2 ──────────────────────────────────────────────")
     print("Run these Claude Code Workflows over this run's task ids:")
     print("  qa_active_backfill.js  -> phase_backfill.json   (rewrite flagged justifications)")
@@ -121,8 +147,16 @@ def main():
     p.add_argument("run"); p.add_argument("--output", required=True)
     p.set_defaults(func=cmd_persist)
 
-    p = sub.add_parser("categorize", help="findings + worklist + backfill/external inputs")
+    p = sub.add_parser("categorize", help="findings + worklist (preliminary)")
     p.add_argument("run"); p.set_defaults(func=cmd_categorize)
+
+    p = sub.add_parser("verify", help="prep the post-categorize verify passes (stump re-run / PDF LLM recheck / CB recheck)")
+    p.add_argument("run"); p.add_argument("--csv", required=True)
+    p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("verify-apply", help="apply verify results (flip stumps, clear false-positive PDFs) + re-categorize")
+    p.add_argument("run"); p.add_argument("--pdf"); p.add_argument("--stump"); p.add_argument("--cb")
+    p.set_defaults(func=cmd_verify_apply)
 
     p = sub.add_parser("deliverables", help="build every deliverable")
     p.add_argument("run"); p.add_argument("--csv", required=True)

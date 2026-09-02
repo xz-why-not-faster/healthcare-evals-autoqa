@@ -8,7 +8,11 @@ contributor_feedback_ids.json so build_sheets excludes these from external_feedb
 import csv, json, os, re
 
 RUN = os.path.dirname(os.path.abspath(__file__))
-NEEDS = {'parity', 'uk_in_session', 'no_valid_stump', 'meta_leak', 'not_healthcare', 'structural'}
+NEEDS = {'parity', 'uk_in_session', 'no_valid_stump', 'meta_leak', 'not_healthcare', 'structural', 'wrong_pdf'}
+# Contributor-fixable needs-drivers: a task routes to the contributor pool ONLY when its needs-drivers
+# are exclusively these (parity, a short/broken session -> structural, and a wrong-PDF upload). Any
+# reviewer-routed issue (uk_in_session, no_valid_stump, meta_leak, not_healthcare) keeps it external.
+CONTRIB_FIXABLE = {'parity', 'structural', 'wrong_pdf'}
 
 findings = {r['task_id']: r for r in csv.DictReader(open(f'{RUN}/deliverables/eval_findings.csv'))}
 _ep = os.path.join(RUN, 'phase_external.json')
@@ -24,17 +28,20 @@ for t, r in findings.items():
         continue
     drivers = {d.strip() for d in (r.get('drivers', '') or '').split(',')}
     nd = drivers & NEEDS
-    # contributor feedback ONLY when the needs-drivers are exclusively parity and/or structural
-    if not nd or not (nd <= {'parity', 'structural'}):
+    # contributor feedback ONLY when the needs-drivers are exclusively contributor-fixable
+    if not nd or not (nd <= CONTRIB_FIXABLE):
         continue
     selected.append(t)
     e = EXT.get(t, {})
-    # clean reviewer-facing prose: the parity/broken-link fix (session) + any task-level misc.
-    # Deliberately EXCLUDE the ratings/justification notes (rate) from contributor feedback.
-    parts = [clean(e.get('session', '')), clean(e.get('misc', ''))]
+    # clean reviewer-facing prose: the parity/broken-link fix (session) + the wrong-PDF fix (artifact)
+    # + any task-level misc. Deliberately EXCLUDE the ratings/justification notes (rate).
+    parts = [clean(e.get('session', '')), clean(e.get('artifact', '')), clean(e.get('misc', ''))]
     fb = '  '.join(p for p in parts if p and p.lower() not in ('n/a', 'none', ''))
     if not fb:
-        fb = clean(r.get('parity', '')) or 'Needs review for a parity/structural issue.'
+        p = clean(r.get('parity', ''))
+        fb = (p if p.upper().startswith('FAIL') else '') \
+            or clean(r.get('artifact_errors', '')) \
+            or 'Needs review for a parity, short-session, or uploaded-PDF issue.'
     rows.append({'task_id': t, 'contributor feedback': fb})
 
 with open(f'{RUN}/deliverables/contributor_feedback.csv', 'w', newline='') as f:
