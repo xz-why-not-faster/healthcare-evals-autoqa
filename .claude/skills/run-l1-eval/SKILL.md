@@ -54,7 +54,8 @@ python3 qa_pipeline_active/run.py verify <LABEL> --csv "<CSV>"
 ```
 Writes the verify inputs and prints **Checkpoint V**. Run these Workflows over the printed id lists,
 saving each `.output`:
-- `qa_active_justif.js` over `verify/nostump_ids.json` — re-run the stump eval (flip any that now find one)
+- `qa_active_justif.js` over `verify/nostump_ids.json` — re-run the stump eval (flip any that now find one).
+  Pass the **bare id array** as `args` (not `{run, ids}` — this eval reads only the case file, so it takes no `run`).
 - `qa_active_pdfrecheck.js` (args `{run, ids}`) over `verify/wrongpdf_ids.json` — clear false-positive wrong_pdf
 - `qa_active_stumprecheck.js` (args `{run, ids}`) over the still-no-stump ids — re-adjudicate against the
   contributor's `CB: model failure justification` + `response to eval`
