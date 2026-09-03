@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] prior-eval-lookup skill: find the most recent eval + feedback for an attempt/task id by scanning run folders on disk (no history DB) — for redos (initial attempt id / L0 reviewed attempt id) to derive "changes since last eval".
+
 * [2026-09-01] README: mention the sandbox-eval-sync skill near the top (keeps the in-task sandbox audit aligned with these evals).
 
 * [2026-09-01] README: ordered the driver table by touch — reviewer drivers first, then attempter, then backfill.
