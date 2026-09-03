@@ -100,7 +100,7 @@ def cmd_verify(args):
     wp = os.path.join(run, "verify", "wrongpdf_ids.json")
     print("\n── CHECKPOINT V (verify) ─────────────────────────────────────")
     print("Run these Claude Code Workflows, then save each .output:")
-    print(f"  qa_active_justif.js       args={{run,ids}} over {os.path.relpath(ns, HERE)}   (re-run stump)")
+    print(f"  qa_active_justif.js       args=<the id ARRAY> from {os.path.relpath(ns, HERE)}   (re-run stump)")
     print(f"  qa_active_pdfrecheck.js   args={{run,ids}} over {os.path.relpath(wp, HERE)}   (PDF LLM recheck)")
     print(f"  qa_active_stumprecheck.js args={{run,ids}} over the still-no-stump ids        (CB-feedback recheck)")
     print(f"Then:  run.py verify-apply {args.run} [--stump <justif.output>] [--pdf <pdfrecheck.output>] [--cb <stumprecheck.output>]")
@@ -121,13 +121,42 @@ def cmd_verify_apply(args):
     print(f"Then:  run.py deliverables {args.run} --csv <CSV>")
 
 
+def cmd_revfeedback(args):
+    """L10 only: prep the reviewer-feedback recheck over the needs-review tasks."""
+    run = resolve_run(args.run)
+    cmd = [PY, os.path.join(run, "build_revfeedback_input.py"), args.review_csv]
+    if args.all: cmd.append("--all")
+    sh(cmd)
+    ids = os.path.join(run, "revfeedback", "revfeedback_ids.json")
+    print("\n\u2500\u2500 CHECKPOINT R (L10 reviewer feedback) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+    print("Run this Claude Code Workflow, then save its .output:")
+    print(f"  qa_active_revfeedback.js  args={{run,ids}} over {os.path.relpath(ids, HERE)}")
+    print(f"Then:  run.py revfeedback-apply {args.run} --output <revfeedback.output>")
+
+
+def cmd_revfeedback_apply(args):
+    run = resolve_run(args.run)
+    sh([PY, os.path.join(run, "apply_revfeedback.py"), args.output])
+    _backfill_external_inputs(run)             # refresh backfill/external inputs on the FINAL categories
+    print("\n\u2500\u2500 CHECKPOINT 2 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500")
+    print("Run qa_active_backfill.js / qa_active_revoice.js / qa_active_external.js, then:")
+    print(f"  run.py deliverables {args.run} --csv <CSV>")
+
+
 def cmd_deliverables(args):
     run = resolve_run(args.run)
     for script in ("build_melt.py", "build_persona_sheet.py",
-                   "build_contributor_feedback.py", "build_disagreements.py"):
+                   "build_contributor_feedback.py", "build_disagreements.py", "build_no_issues.py"):
         sh([PY, os.path.join(run, script)])
     sh([PY, os.path.join(run, "build_sheets.py"), args.csv])
+    sh([PY, os.path.join(run, "build_redos.py"), args.csv])   # redo + L10 needs-review tables
     print(f"\n[deliverables] see {os.path.relpath(os.path.join(run, 'deliverables'), HERE)}/")
+
+
+def cmd_redos(args):
+    """Just the redo + L10 needs-review conversation tables (also part of `deliverables`)."""
+    run = resolve_run(args.run)
+    sh([PY, os.path.join(run, "build_redos.py"), args.csv])
 
 
 def main():
@@ -138,7 +167,7 @@ def main():
     p.add_argument("run"); p.add_argument("--csv", required=True)
     p.add_argument("--ids", help="JSON array file of task ids")
     p.add_argument("--tasks", help="comma-separated task ids")
-    p.add_argument("--levels", default="L1")
+    p.add_argument("--levels", default="L1,L10", help="review levels to ingest (default both L1,L10; pass one to run just that level)")
     p.add_argument("--no-download", action="store_true", help="skip live link scrape (use cached transcripts)")
     p.add_argument("--traffic", action="store_true", help="print the traffic battery orchestrator at checkpoint 1")
     p.set_defaults(func=cmd_ingest)
@@ -158,9 +187,23 @@ def main():
     p.add_argument("run"); p.add_argument("--pdf"); p.add_argument("--stump"); p.add_argument("--cb")
     p.set_defaults(func=cmd_verify_apply)
 
+    p = sub.add_parser("revfeedback", help="L10: prep the reviewer-feedback recheck of needs-review tasks")
+    p.add_argument("run"); p.add_argument("--review-csv", required=True,
+                   help='the V19 "review data" export (L0 reviewer notes/fixes/QC)')
+    p.add_argument("--all", action="store_true", help="include every L10 task, not just needs-review")
+    p.set_defaults(func=cmd_revfeedback)
+
+    p = sub.add_parser("revfeedback-apply", help="L10: apply the reviewer-feedback verdicts to the categories")
+    p.add_argument("run"); p.add_argument("--output", required=True)
+    p.set_defaults(func=cmd_revfeedback_apply)
+
     p = sub.add_parser("deliverables", help="build every deliverable")
     p.add_argument("run"); p.add_argument("--csv", required=True)
     p.set_defaults(func=cmd_deliverables)
+
+    p = sub.add_parser("redos", help="just the redo + L10 needs-review conversation tables")
+    p.add_argument("run"); p.add_argument("--csv", required=True)
+    p.set_defaults(func=cmd_redos)
 
     args = ap.parse_args()
     args.func(args)

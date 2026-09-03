@@ -2,6 +2,9 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] Redo + L10 tables: new build_redos.py emits redos_needs_review.csv (redo reattempts still failing — task/attempter/level_of_redo/reason/initial_attempt_id/prior_eval) and l10_needs_review.csv (non-redo L10 needs-review — +changes_since_last_eval via prior-eval-lookup +reviewer commentary). Wired into deliverables + a standalone `redos` command.
+* [2026-09-01] run.py ingest now defaults to --levels L1,L10 (run both at once; pass one level to run just that).
+
 * [2026-09-01] prior-eval-lookup skill: find the most recent eval + feedback for an attempt/task id by scanning run folders on disk (no history DB) — for redos (initial attempt id / L0 reviewed attempt id) to derive "changes since last eval".
 
 * [2026-09-01] README: mention the sandbox-eval-sync skill near the top (keeps the in-task sandbox audit aligned with these evals).

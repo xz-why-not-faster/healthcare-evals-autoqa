@@ -24,8 +24,11 @@ judging; Python does the merging, categorization, and deliverable formatting.
 
 ## 🚧 Work in progress
 
-- **Tracking L1 tasks returned to the original attempter** in the eval (the `contributor_feedback` send-backs — where they go, whether they come back fixed).
-- **L10 eval workflows** (the reviewer-level pass — not yet part of this packaged flow).
+- **Redo tracking** — reattempts (`redo==yes`) that still fail are surfaced in `redos_needs_review.csv`
+  for hand-adjudication; the deeper *transcript* diff of the redo vs its ingested initial attempt
+  ("changes since last attempt") is the next step. Auto-workflow for these is the eventual goal.
+- **L10 eval workflows** — the reviewer-level pass now runs alongside L1 (default `--levels L1,L10`),
+  with the `revfeedback` recheck against L0 notes and the `l10_needs_review.csv` table; still maturing.
 - **Cross-eval tracking** — general task quality and contributor quality across runs.
 
 ---
@@ -255,6 +258,15 @@ filtered to L1 in place** (so any L10 step runs before it) and reads `contributo
 *Also produced (intermediate / secondary):* `worklist.json` (the backfill plan the backfill eval reads),
 `backfill_forms.csv` (a wide reviewer view of the same backfill data), `ratings_disagreements.csv`
 (bucket-cross adjudication sheet).
+
+**Redo / L10 conversation tables** (`build_redos.py`, hand-adjudicated for now):
+- `redos_needs_review.csv` — every **redo** (`redo==yes`) still needs-review, any level: `task_id ·
+  attempter · level_of_redo (attempt level) · reason · initial_attempt_id · prior_eval`. `prior_eval`
+  comes from the [`prior-eval-lookup`](.claude/skills/prior-eval-lookup/) skill on the initial attempt
+  id — what the last attempt was told to fix (the basis for "changes since last attempt").
+- `l10_needs_review.csv` — L10 needs-review tasks that are **not** redos: `task_id · attempter · reason ·
+  changes_since_last_eval` (driver delta vs the task's prior eval, via the same lookup) `·
+  reviewer_commentary` (the L0 reviewer's notes from the combined CSV).
 
 **The backfill step-id mapping** (`backfill_melt.csv` / `backfill_forms.csv` must match the collection
 form exactly). Field base per dim: `overall→overall_rating`, `completeness→completeness_quality`, all
