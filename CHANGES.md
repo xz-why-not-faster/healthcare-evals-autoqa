@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README: added a top Pipeline overview (L-1→L1 and L0→L10 holding layers; the action flows L-1→L1→{L-1 redo / L12 no-issues / bot-attempt→L12 / L0 reviewer} mapped to deliverables; redo/L10 in-chat tables; still-failing tasks may be wiped) and made clear the pipeline covers both L1 and L10.
+
 * [2026-09-01] run-l1-eval skill: clarify the verify stump re-run takes a bare id array (qa_active_justif.js reads only the case file, no run arg).
 
 * [2026-09-01] Redo diffing: per-run case snapshots (run/cases/) at ingest + build_attempt_diff.py — the redo table's changes_since_last_attempt now diffs links/scores/justifications/turns vs the initial attempt (falls back to prior-eval findings when the initial predates snapshots).

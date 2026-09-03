@@ -2,9 +2,10 @@
 
 Automated QA for the **Healthcare Evals** task set. Each task is a 3-provider submission
 (ChatGPT / Claude / Gemini conversations of the same scenario) plus a contributor's ratings and
-justifications across 11 rubric dimensions. This pipeline audits a batch of tasks and produces the
-daily **L1** review deliverables: what to fix, what to re-collect, and corrected ratings — with
-every clinical/safety finding grounded in the actual transcript.
+justifications across 11 rubric dimensions. This pipeline audits a batch of tasks — both the
+first-eval layer (**L1**) and the reviewer layer (**L10**) — and decides the **action** each task
+needs next, with corrected ratings and feedback, every clinical/safety finding grounded in the
+actual transcript.
 
 It is a set of **Claude Code Workflow evals** (LLM judges, in `qa_pipeline_active/evals/`)
 orchestrated by small deterministic Python scripts (`qa_pipeline_active/build/`). The LLM does the
@@ -15,12 +16,39 @@ judging; Python does the merging, categorization, and deliverable formatting.
 > sandbox prompt and recommends surgical edits whenever an eval here changes (recommends only, never
 > auto-applies).
 
+- **[Pipeline overview](#pipeline-overview) ← levels, actions, and what it produces**
 - [Prerequisites & setup](#prerequisites) · [Data source](#data-source--the-input-csv) ·
   [Running it](#running-it--one-entrypoint)
 - **[The eval workflow](#the-eval-workflow) ← what gets ingested and evaluated at each step**
 - [Action categorization](#action-categorization--drivers--category) ·
   **[The deliverables](#the-deliverables--how-each-is-built)** ·
   [Post-eval workflows](#post-eval-workflows-compass) · [Repo layout](#repo-layout) · [Glossary](#glossary)
+
+## Pipeline overview
+
+**What it evaluates — two holding layers:**
+- **L-1** (contributor attempts) → **L1** — the holding layer where new attempts wait for eval.
+- **L0** (human review) → **L10** — the holding layer where reviewed tasks wait for eval.
+
+A run ingests **both by default** (`--levels L1,L10`); the eval is the same for each — L10 just carries
+the extra reviewer (`L0 …`) context.
+
+**What a run decides — the action per task** (where it goes next, and the deliverable that carries it):
+
+| Flow | Action | Deliverable |
+|---|---|---|
+| L-1 → L1 → **L-1** | **contributor redo** — sent back to the attempter to fix | `contributor_feedback.csv` |
+| L-1 → L1 → **L12** | **no issues** — approve onward | `no_issues.csv` |
+| L-1 → L1 → **bot attempt → L12** | **backfill** — a bot re-does the ratings, then onward | `backfill_melt.csv` |
+| L-1 → L1 → **L0** | **needs reviewer touch** — escalate to human review | `external_feedback.csv` |
+| (persona correction only) | fix persona metadata (auto-sends to **L12**) | `persona_updates.csv` |
+
+*(L10 runs the same way — a reviewed task is re-checked against the reviewer's `L0` feedback, then lands
+on one of the same actions.)*
+
+**Redos & re-reviews.** If a task is redone (an L-1 redo) or reviewed (L10) and *still* has issues, the
+differences from its prior attempt/eval are pulled into a table **in chat** (`redos_needs_review.csv` /
+`l10_needs_review.csv`) and adjudicated by hand — and may simply be **wiped**.
 
 ## 🚧 Work in progress
 
