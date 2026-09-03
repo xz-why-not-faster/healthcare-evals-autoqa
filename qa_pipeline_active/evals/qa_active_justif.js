@@ -9,8 +9,14 @@ const WS = `${ROOT}/qa_pipeline_active/workspace`
 const SK = `${ROOT}/.claude/skills`
 let _a = args
 if (typeof _a === 'string') { try { _a = JSON.parse(_a) } catch (e) {} }
-const taskIds = Array.isArray(_a) ? _a : (_a ? [_a] : [])
-if (!taskIds.length) throw new Error('Pass task id(s) as args')
+// accept a bare id array, a single id string, or {run, ids} (the shape the verify checkpoint passes)
+let taskIds = []
+if (Array.isArray(_a)) taskIds = _a
+else if (_a && typeof _a === 'object' && Array.isArray(_a.ids)) taskIds = _a.ids
+else if (typeof _a === 'string' && _a) taskIds = [_a]
+if (!taskIds.length) throw new Error('Pass task id(s) as args — a bare array, a single id, or {run, ids}')
+const bad = taskIds.filter((t) => typeof t !== 'string' || !/^[0-9a-f]{24}$/.test(t))
+if (bad.length) throw new Error('qa_active_justif: bad task ids ' + JSON.stringify(bad) + ' — expected 24-hex ids')
 
 const SCHEMA = {
   type: 'object', additionalProperties: true,

@@ -15,8 +15,11 @@ Reads the run's deliverables/eval_findings.csv + the combined V19 CSV (redo / in
 attempt level / L0 notes). usage: build_redos.py <combined.csv>  (or $QA_INPUT_CSV)
 """
 import csv, json, os, subprocess, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from build_attempt_diff import diff_attempts   # noqa: E402
 
 RUN = os.path.dirname(os.path.abspath(__file__))
+WS = os.path.join(RUN, '..', 'workspace')
 CSV = (sys.argv[1] if len(sys.argv) > 1 else None) or os.environ.get("QA_INPUT_CSV")
 if not CSV:
     sys.exit("build_redos: pass the combined V19 CSV as arg1 or set QA_INPUT_CSV")
@@ -61,6 +64,7 @@ for f in findings:
             'task_id': t, 'attempter': g(t, 'submitted by'),
             'level_of_redo': g(t, 'attempt level'), 'reason': reason(f),
             'initial_attempt_id': init,
+            'changes_since_last_attempt': diff_attempts(t, init, os.path.join(WS, f'task_{t}.json')) if init else '',
             'prior_eval': first_line(lookup('--attempt', init)) if init else '(no initial attempt id)',
         })
     elif f['level'] == 'L10':
@@ -75,7 +79,7 @@ def write(name, cols, rows):
         w = csv.DictWriter(fh, fieldnames=cols); w.writeheader()
         for r in rows: w.writerow(r)
 
-write('redos_needs_review.csv', ['task_id','attempter','level_of_redo','reason','initial_attempt_id','prior_eval'], redos)
+write('redos_needs_review.csv', ['task_id','attempter','level_of_redo','reason','initial_attempt_id','changes_since_last_attempt','prior_eval'], redos)
 write('l10_needs_review.csv', ['task_id','attempter','reason','changes_since_last_eval','reviewer_commentary'], l10)
 print(f"redos_needs_review.csv: {len(redos)} redo task(s) still needs-review")
 print(f"l10_needs_review.csv: {len(l10)} non-redo L10 needs-review task(s)")

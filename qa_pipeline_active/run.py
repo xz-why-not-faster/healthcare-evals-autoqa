@@ -68,6 +68,15 @@ def cmd_ingest(args):
     sh(ing)
     sh([PY, os.path.join(run, "build_meta.py"), args.csv])
     sh([PY, os.path.join(HERE, "pdf_link_check.py"), run])
+    # snapshot this run's case files into the run folder — the shared workspace/ gets overwritten by
+    # the next run, so this preserves each attempt's transcript/scores/justifications for redo diffing.
+    cases = os.path.join(run, "cases"); os.makedirs(cases, exist_ok=True)
+    ws = os.path.join(HERE, "workspace")
+    for t in ids:
+        src = os.path.join(ws, f"task_{t}.json")
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(cases, f"task_{t}.json"))
+    print(f"[ingest] snapshotted {len(ids)} case file(s) -> {os.path.relpath(cases, HERE)}/")
     print("\n── CHECKPOINT 1 ──────────────────────────────────────────────")
     print("Run the eval battery (Claude Code Workflow):")
     orch = "build/battery_traffic.js" if args.traffic else "build/battery_nt.js"

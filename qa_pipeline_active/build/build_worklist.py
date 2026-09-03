@@ -8,6 +8,9 @@ WS  = os.path.join(RUN, '..', 'workspace')
 def L(fn): return json.load(open(os.path.join(RUN, fn)))
 ratings = L('phase_ratings.json'); justif = L('phase3b_justif.json'); evidence = L('phase_evidence.json')
 findings = {r['task_id']: r for r in csv.DictReader(open(os.path.join(RUN, 'deliverables', 'eval_findings.csv')))}
+# drivers the L10 reviewer-feedback pass refuted — never regenerate a fix from them (see apply_revfeedback.py)
+_cd = os.path.join(RUN, 'revfeedback', 'cleared_drivers.json')
+CLEARED = json.load(open(_cd)) if os.path.exists(_cd) else {}
 
 # ALL 11 rubric dims (key == workspace dim name). justif/UK/evidence only fire on clinical_accuracy/safety_triage;
 # other dims are rewritten only when the ratings eval reports a bucket-cross disagreement.
@@ -45,6 +48,7 @@ def _is_na(s):
 for t,fr in findings.items():
     if fr['category']!='backfill': continue
     low_eff = 'low_effort' in (fr.get('drivers') or '')
+    cleared = set(CLEARED.get(t) or [])
     wsr=ws(t); rr=ratings.get(t,{}).get('providers',{}) or {}
     jj=justif.get(t,{}).get('providers',{}) or {}
     ev=evidence.get(t,{}).get('providers',{}) or {}
@@ -70,20 +74,20 @@ for t,fr in findings.items():
             # ratings bucket-cross disagreement on this dim
             dv=(dims.get('dims') or {}).get(wsdim,{})
             my=dv.get('my_score'); cb=dv.get('cb_score')
-            if my is not None and cb is not None and dv.get('disagree') and ((my<=2)!=(cb<=2)):
+            if 'ratings' not in cleared and my is not None and cb is not None and dv.get('disagree') and ((my<=2)!=(cb<=2)):
                 # CLAMP: only ever move to the near side of the bucket boundary — 3 up, 2 down. Never self-score 1/4/5.
                 clamped = 3 if (cb<=2 and my>=3) else (2 if (cb>=3 and my<=2) else my)
                 need=True; target=clamped; reasons.append(f'ratings corrected {cb}->{clamped} (bucket move): {dv.get("reason","")}')
             # justif inconsistency (flag False)
             jd=(jj.get(prov,{}).get('consistent_with_session') or {}).get(wsdim,{})
-            if isinstance(jd,dict) and jd.get('flag') is False:
+            if 'justif' not in cleared and isinstance(jd,dict) and jd.get('flag') is False:
                 need=True; reasons.append('justif inconsistent: '+jd.get('detail',''))
             # uk in justification (flag True)
             ud=(jj.get(prov,{}).get('contains_uk_guidelines') or {}).get(wsdim,{})
-            if isinstance(ud,dict) and ud.get('flag'):
+            if 'uk_in_justification' not in cleared and isinstance(ud,dict) and ud.get('flag'):
                 need=True; reasons.append('UK guidance in justification -> reframe to US: '+ud.get('detail',''))
             # evidence needed (missing_evidence mentioning this dim) — overall/clinical/triage clinical dims
-            me=ev.get(prov,{}).get('missing_evidence') or []
+            me=[] if 'citation' in cleared else (ev.get(prov,{}).get('missing_evidence') or [])
             for x in me:
                 xs=x if isinstance(x,str) else json.dumps(x)
                 if wsdim in xs or (wsdim=='clinical_accuracy' and 'clinical' in xs) or (wsdim=='safety_triage' and ('safety' in xs or 'triage' in xs)):

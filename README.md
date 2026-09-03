@@ -18,7 +18,7 @@ judging; Python does the merging, categorization, and deliverable formatting.
 - [Prerequisites & setup](#prerequisites) · [Data source](#data-source--the-input-csv) ·
   [Running it](#running-it--one-entrypoint)
 - **[The eval workflow](#the-eval-workflow) ← what gets ingested and evaluated at each step**
-- [Categorization](#categorization--drivers--category) ·
+- [Action categorization](#action-categorization--drivers--category) ·
   **[The deliverables](#the-deliverables--how-each-is-built)** ·
   [Post-eval workflows](#post-eval-workflows-compass) · [Repo layout](#repo-layout) · [Glossary](#glossary)
 
@@ -54,27 +54,30 @@ once after cloning, and again if you move the repo. It's idempotent.
 
 ## Data source — the input CSV
 
-The one input is the V19 **"full data per task"** export — **one row per model** (3 rows per task).
-Pull it from **Redash query 359286** (https://redash.scale.com/queries/359286/) → *Download as CSV*.
-It is **not** in the repo (it contains account credentials + contributor PII, and is regenerable);
-`.gitignore` blocks `*.csv`.
+The one input is the V19 **"full data per task"** export from **Redash query 359286**
+(https://redash.scale.com/queries/359286/) → *Download as CSV*. It's not in the repo (account
+credentials + PII, regenerable; `.gitignore` blocks `*.csv`). One row per model (3 per task). Redash
+holds the full column set — this just describes what's in it.
 
-Columns the pipeline reads:
+It's two kinds of data in one export:
+- **Response data** — the task itself: scenario / persona / modality / tier, the three providers' share
+  links (the transcripts are scraped from these), the produced artifacts, and the contributor's
+  11-dimension ratings + justifications (the data being audited). This is what an L1 eval runs on.
+- **Review data** — for tasks that went through the reviewer layer (L10), the `L0 …` columns: the
+  reviewer's auto-feedback, what they agreed/disagreed with, the fixes they made, and their QC score /
+  notes. Plus redo bookkeeping (`redo`, `initial attempt id`, `L0 reviewed attempt id`).
 
-| Column | Used for |
-|---|---|
-| `task id`, `attempt id` | identity (a changed attempt id = contributor redid the task) |
-| `submitted by`, `submitted (pt)`, `status` | attempter, timestamp, pending-vs-done |
-| `taxonomy` | → `form_type` (Form A / B / C), which sets the deliverable step-ids |
-| `persona`, `modality`, `tier`, `task category` | task classification |
-| `prompt`, `user scenario`, `desired end state`, `trajectory plan` | task intent (parity, stump, categorization) |
-| `country` | UK-guidance relevance (a non-US task citing UK guidance → flag) |
-| `provider`, `provider #` | which model + slot order 1/2/3 (falls back to row order if blank) |
-| `session link` | the live share link — the transcript is scraped from here |
-| `produced artifacts` | generated-file names (artifact checks) |
-| the 11 rubric dims + each `… justification` | the contributor ratings being audited |
+You typically QA the day's **pending** tasks; ingest defaults to both `L1` and `L10`.
 
-You typically QA the day's **pending L1** tasks: put their ids in a JSON array (`ids.json`).
+### Signals the eval reads beyond the transcript
+A few fields don't get scored — they *steer* the eval:
+- **Sandbox feedback** — the in-task sandbox audit the contributor saw (`eval transcripts`,
+  `eval ratings audit`) and their reply to it (`response to eval`). The verify/revfeedback rechecks use
+  these to see what was already flagged and how the contributor answered.
+- **Reviewer fixes** — the `L0 …` agree / notes / fixes columns: what the reviewer already corrected, so
+  a needs-review flag the reviewer resolved gets cleared instead of re-raised.
+- **Redo lineage** — `redo` / `initial attempt id` link a reattempt to the attempt it's redoing, so the
+  redo table can diff what changed (links, scores, justifications, transcript).
 
 ## Running it — one entrypoint
 
@@ -167,7 +170,9 @@ conversation as the share link (MATCH / UNREADABLE_PDF / **WRONG_CONVO** / NO_PD
 model into a worse answer — quote it, credit any safety-net/escalation clause. No genuine missed red
 flag and no care-delaying triage error ⇒ **default ≥3 / not a valid stump.**
 
-## Categorization — drivers → category
+## Action categorization — drivers → category
+
+Every task is assigned the **action** it needs — who does what next — from the drivers that fired.
 
 `categorize.py` collects a **drivers** list per task, then (first match wins):
 
@@ -238,6 +243,25 @@ Everything lands in `<run>/deliverables/`. Build order matters in two places: **
 overwrites** the preliminary `worklist.json`, and **`build_sheets.py` rewrites `eval_findings.csv`
 filtered to L1 in place** (so any L10 step runs before it) and reads `contributor_feedback_ids.json`
 (so `build_contributor_feedback.py` runs first).
+
+### How a backfill is built and written
+
+A backfill *corrects a task in place* — it never re-collects the task; it fixes the ratings row. Four
+stages turn a flagged task into the corrected rows that ship:
+
+1. **Plan** (`build_worklist.py`) → `worklist.json`: per provider, for all 11 dims, the original
+   score+justification and a `fixes` entry saying whether each dim `needs_rewrite`, its `target_score`,
+   and *why*. Scores barely move (see the rules below); most fixes are justification rewrites.
+2. **Rewrite** (`qa_active_backfill.js`, LLM) → `phase_backfill.json`: rewrites *only* the flagged
+   justifications, **at the kept score**, grounded in the transcript — folding in a verifiable citation
+   where a clinical/safety claim needs one, reframing UK→US, or fixing a transcript inconsistency. It
+   never argues the score should differ.
+3. **Re-voice** (`qa_active_revoice.js`, LLM): rewrites those in the *contributor's* own voice (matching
+   their length/phrasing, stripping AI tells) so the corrected justification reads as theirs.
+4. **Write to the form** (`build_melt.py` / `build_sheets.py`): emit the corrected score+justification
+   into the exact collection-form fields — `backfill_melt.csv` is the LONG `task, step, value` form the
+   post-eval workflow applies (each `step` is the form's real step-id, mapped by `form_type` below);
+   `backfill_forms.csv` is the wide human-readable view of the same data.
 
 **Correction rules shared across the backfill builders:**
 - **Gating cap** as above.

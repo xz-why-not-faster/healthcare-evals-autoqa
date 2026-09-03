@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Build L1 deliverables: external_feedback.csv + backfill_forms.csv.
-eval_findings.csv is already emitted by categorize.py (filter to L1 here too)."""
+"""Build the run's deliverables: external_feedback.csv + backfill_forms.csv.
+eval_findings.csv is already emitted by categorize.py (filtered to the run's level here too).
+Review level comes from $QA_LEVEL (default L1)."""
 import csv, json, os, sys
 RUN = os.path.dirname(os.path.abspath(__file__))
 WS  = os.path.join(RUN, '..', 'workspace')
 # input CSV: 1st CLI arg, else $QA_INPUT_CSV
 CSV = (sys.argv[1] if len(sys.argv) > 1 else None) or os.environ.get("QA_INPUT_CSV")
+LEVEL = os.environ.get('QA_LEVEL', 'L1')
 if not CSV:
     sys.exit("build_sheets: pass the V19 input CSV as arg1 or set QA_INPUT_CSV")
 
 meta = json.load(open(os.path.join(RUN, 'meta.json')))
-findings = [r for r in csv.DictReader(open(os.path.join(RUN, 'deliverables', 'eval_findings.csv'))) if r['level'] == 'L1']
+findings = [r for r in csv.DictReader(open(os.path.join(RUN, 'deliverables', 'eval_findings.csv'))) if r['level'] == LEVEL]
 fmap = {r['task_id']: r for r in findings}
 worklist = json.load(open(os.path.join(RUN, 'worklist.json')))
 BF = json.load(open(os.path.join(RUN, 'phase_backfill.json'))) if os.path.exists(os.path.join(RUN, 'phase_backfill.json')) else {}
@@ -61,7 +63,7 @@ for r in findings:
     e = EXT.get(t, {})
     links = meta[t].get('links', {})
     ext_rows.append({
-        'task_id': t, 'form_type': r['form_type'], 'level': 'L1', 'category': 'needs review',
+        'task_id': t, 'form_type': r['form_type'], 'level': LEVEL, 'category': 'needs review',
         'session_errors_external': na(e.get('session', '')), 'artifact_upload_errors_external': na(e.get('artifact', '')),
         'rate_justification_errors_external': na(e.get('rate', '')), 'misc_errors_external': na(e.get('misc', '')),
         'chatgpt_session_link': links.get('chatgpt', ''), 'claude_session_link': links.get('claude', ''),
@@ -95,7 +97,7 @@ for r in findings:
     corrected = pe.get('suggested_persona') if (pe and not pe.get('fits_assigned_persona', True)) else orig_persona
     pslug, pname, pdesc = persona_cols(corrected)
     row = {
-        'form': 'backfill', 'review_level': 'L1', 'form_type': r['form_type'], 'task_id': t,
+        'form': 'backfill', 'review_level': LEVEL, 'form_type': r['form_type'], 'task_id': t,
         'main_action': 'backfill',
         'provider_1': porder[0] if len(porder) > 0 else '', 'provider_2': porder[1] if len(porder) > 1 else '',
         'provider_3': porder[2] if len(porder) > 2 else '',
@@ -127,14 +129,14 @@ with open(os.path.join(RUN, 'deliverables', 'backfill_forms.csv'), 'w', newline=
     w = csv.DictWriter(f, fieldnames=BF_COLS); w.writeheader()
     for r in bf_rows: w.writerow(r)
 
-# ---------- eval_findings.csv: filter to L1 ----------
+# ---------- eval_findings.csv: filter to the run's level ----------
 all_ef = list(csv.DictReader(open(os.path.join(RUN, 'deliverables', 'eval_findings.csv'))))
 efcols = list(all_ef[0].keys())
 with open(os.path.join(RUN, 'deliverables', 'eval_findings.csv'), 'w', newline='') as f:
     w = csv.DictWriter(f, fieldnames=efcols); w.writeheader()
     for r in all_ef:
-        if r['level'] == 'L1': w.writerow(r)
+        if r['level'] == LEVEL: w.writerow(r)
 
-print('external_feedback.csv:', len(ext_rows), 'rows (L1 needs-review)')
-print('backfill_forms.csv:', len(bf_rows), 'rows (L1 backfill)')
-print('eval_findings.csv: filtered to L1 (', sum(1 for r in all_ef if r['level']=='L1'), 'rows)')
+print('external_feedback.csv:', len(ext_rows), f'rows ({LEVEL} needs-review)')
+print('backfill_forms.csv:', len(bf_rows), f'rows ({LEVEL} backfill)')
+print(f'eval_findings.csv: filtered to {LEVEL} (', sum(1 for r in all_ef if r['level']==LEVEL), 'rows)')

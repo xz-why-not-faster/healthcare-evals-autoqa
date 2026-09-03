@@ -2,6 +2,10 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] Redo diffing: per-run case snapshots (run/cases/) at ingest + build_attempt_diff.py — the redo table's changes_since_last_attempt now diffs links/scores/justifications/turns vs the initial attempt (falls back to prior-eval findings when the initial predates snapshots).
+* [2026-09-01] L10 reviewer-feedback flow: build_revfeedback_input.py remapped to the combined CSV's L0-prefixed columns (+ real sandbox-audit fields); apply_revfeedback clears reviewer-refuted drivers so build_worklist won't re-fix them; build_no_issues.py + merge_battery.py utilities.
+* [2026-09-01] README: Data source rewritten as a response-data/review-data summary + an eval-signals subsection; 'Categorization' -> 'Action categorization'; added a 'How a backfill is built' overview.
+
 * [2026-09-01] Redo + L10 tables: new build_redos.py emits redos_needs_review.csv (redo reattempts still failing — task/attempter/level_of_redo/reason/initial_attempt_id/prior_eval) and l10_needs_review.csv (non-redo L10 needs-review — +changes_since_last_eval via prior-eval-lookup +reviewer commentary). Wired into deliverables + a standalone `redos` command.
 * [2026-09-01] run.py ingest now defaults to --levels L1,L10 (run both at once; pass one level to run just that).
 
