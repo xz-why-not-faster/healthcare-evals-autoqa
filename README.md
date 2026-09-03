@@ -35,13 +35,13 @@ the extra reviewer (`L0 …`) context.
 
 **What a run decides — the action per task** (where it goes next, and the deliverable that carries it):
 
-| Flow | Action | Deliverable |
+| Action | Flow | Related eval deliverable |
 |---|---|---|
-| L-1 → L1 → **L12** | **no issues** — approve onward | `no_issues.csv` |
-| L-1 → L1 → **bot attempt → L12** | **backfill** — a bot re-does the ratings, then onward | `backfill_melt.csv` |
-| L-1 → L1 → **L-1** | **contributor redo** — sent back to the attempter to fix | `contributor_feedback.csv` |
-| L-1 → L1 → **L0** | **needs reviewer touch** — escalate to human review | `external_feedback.csv` |
-| (persona correction only) | fix persona metadata (auto-sends to **L12**) | `persona_updates.csv` |
+| **no issues** — approve onward | L-1 → L1 → **L12** | `no_issues.csv` |
+| **backfill** — a bot re-does the ratings, then onward | L-1 → L1 → **bot attempt → L12** | `backfill_melt.csv` |
+| **contributor redo** — sent back to the attempter to fix | L-1 → L1 → **L-1** | `contributor_feedback.csv` |
+| **needs reviewer touch** — escalate to human review | L-1 → L1 → **L0** | `external_feedback.csv` |
+| **persona correction** — fix persona metadata (auto-sends to L12) | (persona-only) | `persona_updates.csv` |
 
 *(L10 runs the same way — a reviewed task is re-checked against the reviewer's `L0` feedback, then lands
 on one of the same actions.)*

@@ -2,6 +2,8 @@
 
 Newest first. Format: `* [YYYY-MM-DD] short note`.
 
+* [2026-09-01] README overview: actions table columns reordered to Action / Flow / Related eval deliverable.
+
 * [2026-09-01] README pipeline overview: reordered the actions table (no issues, backfill, contributor redo, needs reviewer touch) and noted that reviewer + contributor sandbox feedback are eval inputs that can overturn decisions.
 
 * [2026-09-01] README: added a top Pipeline overview (L-1→L1 and L0→L10 holding layers; the action flows L-1→L1→{L-1 redo / L12 no-issues / bot-attempt→L12 / L0 reviewer} mapped to deliverables; redo/L10 in-chat tables; still-failing tasks may be wiped) and made clear the pipeline covers both L1 and L10.
