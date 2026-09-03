@@ -37,14 +37,19 @@ the extra reviewer (`L0 …`) context.
 
 | Flow | Action | Deliverable |
 |---|---|---|
-| L-1 → L1 → **L-1** | **contributor redo** — sent back to the attempter to fix | `contributor_feedback.csv` |
 | L-1 → L1 → **L12** | **no issues** — approve onward | `no_issues.csv` |
 | L-1 → L1 → **bot attempt → L12** | **backfill** — a bot re-does the ratings, then onward | `backfill_melt.csv` |
+| L-1 → L1 → **L-1** | **contributor redo** — sent back to the attempter to fix | `contributor_feedback.csv` |
 | L-1 → L1 → **L0** | **needs reviewer touch** — escalate to human review | `external_feedback.csv` |
 | (persona correction only) | fix persona metadata (auto-sends to **L12**) | `persona_updates.csv` |
 
 *(L10 runs the same way — a reviewed task is re-checked against the reviewer's `L0` feedback, then lands
 on one of the same actions.)*
+
+**Feedback is an input, not just an output.** The reviewer's `L0` feedback and the contributor's
+**response to the in-task sandbox eval** are read *during* our eval and can **overturn** a decision — a
+needs-review flag the reviewer already resolved, or a stump the contributor's response successfully
+defends, gets cleared or upheld rather than blindly re-raised.
 
 **Redos & re-reviews.** If a task is redone (an L-1 redo) or reviewed (L10) and *still* has issues, the
 differences from its prior attempt/eval are pulled into a table **in chat** (`redos_needs_review.csv` /
